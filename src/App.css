@@ -1,3 +1,99 @@
+/* ── Script grounding panel ──────────────────────────── */
+.script-panel {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.script-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  background: var(--code-bg);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    background: var(--accent-bg);
+  }
+}
+
+.script-toggle-icon {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.script-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: #22c55e;
+  padding: 2px 7px;
+  border-radius: 99px;
+}
+
+.script-body {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.script-hint {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+}
+
+.script-drop {
+  min-height: 60px;
+}
+
+.script-ok {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.script-error {
+  font-size: 13px;
+  color: #dc2626;
+  margin: 0;
+}
+
+.script-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--code-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.script-note-item {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.grounded-badge {
+  font-weight: 700;
+  color: #16a34a;
+}
+
 /* ── Form layout ─────────────────────────────────────── */
 .subtitle {
   color: var(--text);
