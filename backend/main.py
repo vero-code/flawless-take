@@ -1,12 +1,37 @@
 from __future__ import annotations
 
+import base64
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from google import genai
+from google.genai.interactions import ImageContent, TextContent
 
-load_dotenv()
+# Always load from backend/.env relative to this file, regardless of cwd
+load_dotenv(Path(__file__).parent / ".env")
+
+# ---------------------------------------------------------------------------
+# Gemini client — lazily created on first request so a missing key produces
+# a clear 500 instead of crashing the server process at startup.
+# ---------------------------------------------------------------------------
+MODEL = "gemini-3.8-flash"
+_gemini: genai.Client | None = None
+
+
+def _get_client() -> genai.Client:
+    global _gemini
+    if _gemini is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GEMINI_API_KEY is not set. Add it to backend/.env and restart.",
+            )
+        _gemini = genai.Client(api_key=api_key)
+    return _gemini
 
 app = FastAPI(title="Flawless Take API")
 
@@ -31,7 +56,30 @@ async def health() -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Check-take — draft route
+# Continuity prompt
+# ---------------------------------------------------------------------------
+def _build_prompt(scene: str, take: str, character: str) -> str:
+    return f"""You are an experienced on-set continuity supervisor reviewing footage for a film production.
+
+You have been given a reference photograph from the following shoot:
+  • Scene:     {scene}
+  • Take:      {take}
+  • Character: {character}
+
+Carefully examine the image and provide a structured continuity report covering:
+
+1. **Makeup & Hair** — skin tone consistency, foundation, lipstick, eye makeup, hair position/styling, flyaways.
+2. **Wardrobe** — visible clothing items, collar/lapel position, buttons, jewellery, accessories.
+3. **Props** — any hand-held or on-body props visible in frame.
+4. **Overall continuity risk** — rate as LOW / MEDIUM / HIGH and briefly explain why.
+
+Format your response with the four numbered sections above.
+Be concise but specific: note the exact detail (e.g. "top shirt button undone", "lipstick slightly darker on lower lip").
+If something cannot be assessed because it is out of frame or unclear, say so explicitly rather than guessing."""
+
+
+# ---------------------------------------------------------------------------
+# Check-take route
 # ---------------------------------------------------------------------------
 @app.post("/api/check-take")
 async def check_take(
@@ -41,13 +89,29 @@ async def check_take(
     file: UploadFile = File(...),
 ) -> dict:
     """
-    Accepts a scene description, take number, character name, and an image
-    file. Returns a stub response — Gemini + Kafka integration to follow.
+    Accepts scene metadata and an image, runs Gemini continuity analysis,
+    and returns the structured report.
     """
     image_bytes = await file.read()
+    mime_type = file.content_type or "image/jpeg"
 
-    # TODO: send image_bytes + scene/take/character to Gemini for analysis
-    # TODO: publish result event to Confluent Kafka topic
+    image_content = ImageContent(
+        data=base64.b64encode(image_bytes).decode(),
+        mime_type=mime_type,
+    )
+    text_content = TextContent(text=_build_prompt(scene, take, character))
+
+    try:
+        interaction = _get_client().interactions.create(
+            model=MODEL,
+            input=[image_content, text_content],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Gemini error: {exc}") from exc
+
+    analysis = interaction.output_text or ""
+
+    # TODO: publish event to Confluent Kafka topic
 
     return {
         "scene": scene,
@@ -55,5 +119,5 @@ async def check_take(
         "character": character,
         "filename": file.filename,
         "size_bytes": len(image_bytes),
-        "result": "stub — Gemini analysis not yet implemented",
+        "result": analysis,
     }

@@ -3,6 +3,59 @@ import './App.css'
 
 const API_URL = 'http://localhost:8000/api/check-take'
 
+/** Minimal markdown → JSX: h3, bold, bullet lists, horizontal rules. */
+function Markdown({ text }: { text: string }) {
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let listBuffer: string[] = []
+
+  function flushList() {
+    if (listBuffer.length === 0) return
+    elements.push(
+      <ul key={elements.length} className="md-list">
+        {listBuffer.map((item, i) => (
+          <li key={i} dangerouslySetInnerHTML={{ __html: inlineFormat(item) }} />
+        ))}
+      </ul>
+    )
+    listBuffer = []
+  }
+
+  function inlineFormat(s: string): string {
+    return s
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+  }
+
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+
+    if (/^#{1,3}\s/.test(line)) {
+      flushList()
+      const content = line.replace(/^#{1,3}\s/, '')
+      elements.push(
+        <h3 key={elements.length} className="md-h3"
+          dangerouslySetInnerHTML={{ __html: inlineFormat(content) }} />
+      )
+    } else if (/^(\*|-)\s/.test(line)) {
+      listBuffer.push(line.replace(/^(\*|-)\s/, ''))
+    } else if (/^---+$/.test(line)) {
+      flushList()
+      elements.push(<hr key={elements.length} className="md-hr" />)
+    } else if (line === '') {
+      flushList()
+    } else {
+      flushList()
+      elements.push(
+        <p key={elements.length} className="md-p"
+          dangerouslySetInnerHTML={{ __html: inlineFormat(line) }} />
+      )
+    }
+  }
+  flushList()
+  return <div className="md-body">{elements}</div>
+}
+
 type CheckResult = {
   scene: string
   take: string
@@ -143,14 +196,13 @@ function App() {
 
         {status === 'success' && result && (
           <div className="result-box result-box--ok">
-            <p className="result-label">Result</p>
-            <p className="result-value">{result.result}</p>
-            <ul className="result-meta">
-              <li><span>Scene</span> {result.scene}</li>
-              <li><span>Take</span> {result.take}</li>
-              <li><span>Character</span> {result.character}</li>
-              <li><span>File</span> {result.filename} ({(result.size_bytes / 1024).toFixed(1)} KB)</li>
-            </ul>
+            <p className="result-label">
+              Continuity report — {result.character} · Scene {result.scene} · Take {result.take}
+            </p>
+            <Markdown text={result.result} />
+            <p className="result-meta-line">
+              {result.filename} · {(result.size_bytes / 1024).toFixed(1)} KB
+            </p>
           </div>
         )}
 
