@@ -1,116 +1,165 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useRef, useState } from 'react'
 import './App.css'
 
+const API_URL = 'http://localhost:8000/api/check-take'
+
+type CheckResult = {
+  scene: string
+  take: string
+  character: string
+  filename: string
+  size_bytes: number
+  result: string
+}
+
+type Status = 'idle' | 'loading' | 'success' | 'error'
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [scene, setScene] = useState('')
+  const [take, setTake] = useState('')
+  const [character, setCharacter] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [status, setStatus] = useState<Status>('idle')
+  const [result, setResult] = useState<CheckResult | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = e.target.files?.[0] ?? null
+    setFile(chosen)
+    if (chosen) {
+      setPreview(URL.createObjectURL(chosen))
+    } else {
+      setPreview(null)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!file) return
+
+    setStatus('loading')
+    setResult(null)
+    setErrorMsg(null)
+
+    const body = new FormData()
+    body.append('scene', scene)
+    body.append('take', take)
+    body.append('character', character)
+    body.append('file', file)
+
+    try {
+      const res = await fetch(API_URL, { method: 'POST', body })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`${res.status} ${res.statusText}: ${text}`)
+      }
+      const data: CheckResult = await res.json()
+      setResult(data)
+      setStatus('success')
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+      setStatus('error')
+    }
+  }
 
   return (
     <>
       <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
+          <h1>Flawless Take</h1>
+          <p className="subtitle">Makeup continuity check — tablet view</p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
+        <form className="check-form" onSubmit={handleSubmit}>
+          <div className="form-row">
+            <label htmlFor="scene">Scene</label>
+            <input
+              id="scene"
+              type="text"
+              placeholder="e.g. INT. BEDROOM – DAY"
+              value={scene}
+              onChange={e => setScene(e.target.value)}
+              required
+            />
+          </div>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
+          <div className="form-row">
+            <label htmlFor="take">Take #</label>
+            <input
+              id="take"
+              type="text"
+              placeholder="e.g. 3"
+              value={take}
+              onChange={e => setTake(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-row">
+            <label htmlFor="character">Character</label>
+            <input
+              id="character"
+              type="text"
+              placeholder="e.g. Elena"
+              value={character}
+              onChange={e => setCharacter(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-row">
+            <label htmlFor="file">Photo</label>
+            <div
+              className="file-drop"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {preview ? (
+                <img src={preview} className="file-preview" alt="Selected photo" />
+              ) : (
+                <span className="file-placeholder">Tap to select image</span>
+              )}
+              <input
+                ref={fileInputRef}
+                id="file"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+                required
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="submit-btn"
+            disabled={status === 'loading' || !file}
+          >
+            {status === 'loading' ? 'Checking…' : 'Check Take'}
+          </button>
+        </form>
+
+        {status === 'success' && result && (
+          <div className="result-box result-box--ok">
+            <p className="result-label">Result</p>
+            <p className="result-value">{result.result}</p>
+            <ul className="result-meta">
+              <li><span>Scene</span> {result.scene}</li>
+              <li><span>Take</span> {result.take}</li>
+              <li><span>Character</span> {result.character}</li>
+              <li><span>File</span> {result.filename} ({(result.size_bytes / 1024).toFixed(1)} KB)</li>
+            </ul>
+          </div>
+        )}
+
+        {status === 'error' && errorMsg && (
+          <div className="result-box result-box--err">
+            <p className="result-label">Error</p>
+            <p className="result-value">{errorMsg}</p>
+          </div>
+        )}
       </section>
 
       <div className="ticks"></div>
