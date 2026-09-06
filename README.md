@@ -54,6 +54,32 @@ Maintaining visual continuity across takes, shooting days, and reverse-shot cove
 
 ---
 
+## Hackathon Roadmap
+
+Aligned with the **Agentic Cinema Hackathon Guide**:
+
+- [x] **🛠️ Phase 1: Core Frameworks & Environment**
+  - Scaffolding of FastAPI backend and React 19 / TypeScript tablet interface.
+  - Integration with the official `google-genai` SDK using `gemini-3.8-flash`.
+  - Secure environment configuration and local runner tooling (`start.bat`).
+
+- [x] **🎬 Phase 2: Action Mechanisms & Data Connectivity (GenMedia Focus)**
+  - **Script Grounding**: Multimodal PDF shooting script parsing for scene and character continuity constraints.
+  - **Single Take Visual Analysis**: Inspection of hair, makeup, wardrobe, and props from camera captures.
+  - **Dual-Take Differential Diff**: Comparative image analysis identifying exact visual deviations between takes.
+
+- [x] **🤝 Phase 3: Partner Integration & Infrastructure**
+  - **IBM Bob**: Application architecture, data models, and initial scaffolding built with IBM Bob.
+  - **Confluent Kafka**: Real-time event pipeline emitting continuity checks to the `flawless-take-events` topic.
+  - **Live Alert Stream**: Real-time Server-Sent Events (SSE) broadcasting instant risk warnings to production crew.
+  - **Daily Continuity Gallery**: Asynchronous SQLite (`aiosqlite`) persistence and searchable history for on-set review.
+  - **Continuity Log PDF Export**: ReportLab generator outputting official Hollywood-standard continuity logs with embedded photos.
+
+- [ ] **🧠 Phase 4: Reasoning, State, & Logic Hosting**
+- [ ] **🚀 Phase 5: Deployment & Safety** 
+
+---
+
 ## Getting Started
 
 ### Prerequisites
