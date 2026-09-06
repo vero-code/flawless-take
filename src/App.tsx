@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 
-const API_BASE = 'http://localhost:8000'
-const API_URL = `${API_BASE}/api/check-take`
+const API_BASE    = 'http://localhost:8000'
+const API_URL     = `${API_BASE}/api/check-take`
 const COMPARE_URL = `${API_BASE}/api/compare-takes`
-const SCRIPT_URL = `${API_BASE}/api/upload-script`
-const ALERTS_URL = `${API_BASE}/api/alerts`
+const SCRIPT_URL  = `${API_BASE}/api/upload-script`
+const ALERTS_URL  = `${API_BASE}/api/alerts`
 const HISTORY_URL = `${API_BASE}/api/history`
+const MCP_INFO_URL = `${API_BASE}/api/mcp-info`
 
 function getMediaUrl(url?: string | null): string | undefined {
   if (!url) return undefined
@@ -1153,6 +1154,81 @@ function AgentCopilotView({
 }
 
 // ---------------------------------------------------------------------------
+// Phase 4 Step 5: MCP Status Badge
+// ---------------------------------------------------------------------------
+type McpInfo = {
+  server_name: string
+  version: string
+  tool_count: number
+  sse_endpoint: string
+  tools: string[]
+  claude_desktop_config: object
+}
+
+function McpStatusBadge() {
+  const [info, setInfo]     = useState<McpInfo | null>(null)
+  const [open, setOpen]     = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    fetch(MCP_INFO_URL)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setInfo(d))
+      .catch(() => { /* backend not running */ })
+  }, [])
+
+  if (!info) return null
+
+  const configJson = JSON.stringify(info.claude_desktop_config, null, 2)
+
+  function copyConfig() {
+    navigator.clipboard.writeText(configJson).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="mcp-badge-wrap">
+      <button
+        type="button"
+        className={`mcp-badge${open ? ' mcp-badge--open' : ''}`}
+        onClick={() => setOpen(o => !o)}
+        title="Studio MCP Server — click for connection details"
+      >
+        <span className="mcp-badge-dot" />
+        <span>🔌 MCP</span>
+        <span className="mcp-badge-count">{info.tool_count} tools</span>
+        <span className="mcp-badge-caret">{open ? '▴' : '▾'}</span>
+      </button>
+
+      {open && (
+        <div className="mcp-drawer">
+          <div className="mcp-drawer-header">
+            <span className="mcp-drawer-title">{info.server_name}</span>
+            <span className="mcp-drawer-version">v{info.version}</span>
+          </div>
+          <div className="mcp-drawer-endpoint">
+            <span className="mcp-endpoint-label">SSE endpoint:</span>
+            <code className="mcp-endpoint-url">http://localhost:8000{info.sse_endpoint}</code>
+          </div>
+          <div className="mcp-drawer-tools">
+            {info.tools.map(t => (
+              <span key={t} className="mcp-tool-chip">{t}</span>
+            ))}
+          </div>
+          <div className="mcp-drawer-config-label">Claude Desktop <code>mcp.json</code>:</div>
+          <pre className="mcp-config-pre">{configJson}</pre>
+          <button type="button" className="mcp-copy-btn" onClick={copyConfig}>
+            {copied ? '✅ Copied!' : '📋 Copy config'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Phase 4 Step 4: Hands-Free Voice Mode
 // ---------------------------------------------------------------------------
 type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking'
@@ -1558,6 +1634,7 @@ function App() {
         <div>
           <h1>Flawless Take</h1>
           <p className="subtitle">Makeup continuity check — tablet view</p>
+          <McpStatusBadge />
         </div>
 
         {/* Page nav */}

@@ -151,6 +151,63 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
+## MCP Integration (Studio MCP Server)
+
+Flawless Take exposes all 8 continuity tools via the **Model Context Protocol (MCP)** — the open standard for connecting AI tools to data sources and services. Studio editing systems, Claude Desktop, Cursor, and custom agents can invoke on-set continuity data with zero custom integration code.
+
+### SSE Endpoint
+
+```
+http://localhost:8000/mcp/sse
+```
+
+Verify the server is live:
+```bash
+curl http://localhost:8000/api/mcp-info
+```
+
+### Claude Desktop Integration
+
+Add to `claude_desktop_config.json` (`~/Library/Application Support/Claude/` on macOS or `%APPDATA%\Claude\` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "flawless-take": {
+      "url": "http://localhost:8000/mcp/sse"
+    }
+  }
+}
+```
+
+### MCP Inspector
+
+```bash
+npx @modelcontextprotocol/inspector http://localhost:8000/mcp/sse
+```
+
+### Exposed Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_scene_continuity_state` | Drift status, baseline take, take history |
+| `query_take_records` | SQLite database search by scene/character |
+| `get_take_full_report` | Full Gemini analysis for a record ID |
+| `check_script_continuity` | Shooting script requirements for a scene |
+| `compare_recorded_takes` | Take-vs-take differential (match score) |
+| `emit_crew_alert` | Kafka + SSE real-time crew alert |
+| `export_continuity_pdf` | Hollywood Continuity Log PDF |
+| `generate_department_checklist` | Structured fix checklist by department |
+
+### stdio (Local Claude Desktop without HTTP)
+
+```bash
+cd backend
+python mcp_server.py
+```
+
+---
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

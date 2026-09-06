@@ -26,6 +26,7 @@ from pydantic import BaseModel
 import agent_service
 import agent_tools
 import database
+import mcp_server as _mcp_server
 import storage
 
 logger = logging.getLogger(__name__)
@@ -142,11 +143,19 @@ app.mount("/uploads", StaticFiles(directory=str(storage.UPLOADS_DIR)), name="upl
 # ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",   # Vite dev server
+        "http://localhost:8000",   # MCP Inspector / local studio clients
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Phase 4 Step 5: Mount MCP server (SSE transport at /mcp)
+# ---------------------------------------------------------------------------
+app.mount("/mcp", _mcp_server.mcp_app)
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +164,26 @@ app.add_middleware(
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/mcp-info")
+async def mcp_info() -> dict:
+    """Return MCP server metadata for the UI status badge."""
+    return {
+        "server_name": "Flawless Take Studio MCP",
+        "version": "1.0.0",
+        "transport": "SSE",
+        "sse_endpoint": "/mcp/sse",
+        "tools": _mcp_server.MCP_TOOL_NAMES,
+        "tool_count": len(_mcp_server.MCP_TOOL_NAMES),
+        "claude_desktop_config": {
+            "mcpServers": {
+                "flawless-take": {
+                    "url": "http://localhost:8000/mcp/sse"
+                }
+            }
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

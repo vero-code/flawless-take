@@ -1831,3 +1831,199 @@
   gap: 6px;
   background: rgba(15, 23, 42, 0.6);
 }
+
+/* ── Phase 4 Step 5: MCP Status Badge ───────────────────── */
+.mcp-badge-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.mcp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+  color: #34d399;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.mcp-badge:hover,
+.mcp-badge--open {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(52, 211, 153, 0.6);
+  box-shadow: 0 0 16px rgba(52, 211, 153, 0.12);
+}
+
+/* Animated green live dot */
+.mcp-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: mcpPulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes mcpPulse {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 0 0 rgba(52,211,153,0.4); }
+  50%       { opacity: 0.7; box-shadow: 0 0 0 5px rgba(52,211,153,0); }
+}
+
+.mcp-badge-count {
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(52, 211, 153, 0.15);
+  font-size: 0.62rem;
+}
+
+.mcp-badge-caret {
+  font-size: 0.6rem;
+  opacity: 0.7;
+}
+
+/* Drawer */
+.mcp-drawer {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  width: min(380px, calc(100vw - 32px));
+  background: linear-gradient(135deg, rgba(10, 20, 35, 0.97) 0%, rgba(10, 25, 42, 0.97) 100%);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(52,211,153,0.06);
+  animation: mcpDrawerIn 0.15s ease;
+}
+
+@keyframes mcpDrawerIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);    }
+}
+
+.mcp-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mcp-drawer-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mcp-drawer-version {
+  font-size: 0.65rem;
+  color: #64748b;
+  background: rgba(255,255,255,0.05);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+.mcp-drawer-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mcp-endpoint-label {
+  font-size: 0.68rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.mcp-endpoint-url {
+  font-size: 0.72rem;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.mcp-drawer-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mcp-tool-chip {
+  font-size: 0.62rem;
+  font-family: monospace;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+
+.mcp-drawer-config-label {
+  font-size: 0.68rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mcp-drawer-config-label code {
+  font-family: monospace;
+  color: #94a3b8;
+}
+
+.mcp-config-pre {
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: #a5f3fc;
+  background: rgba(0, 20, 40, 0.6);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+.mcp-copy-btn {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mcp-copy-btn:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(52, 211, 153, 0.6);
+}
