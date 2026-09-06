@@ -293,3 +293,126 @@ def _extract_risk(text: str) -> str:
     """Pull LOW / MEDIUM / HIGH out of the Gemini report, or return UNKNOWN."""
     m = re.search(r"\b(LOW|MEDIUM|HIGH)\b", text, re.IGNORECASE)
     return m.group(1).upper() if m else "UNKNOWN"
+
+
+def _extract_match_score(text: str) -> str:
+    """Pull POOR / FAIR / GOOD out of the Gemini comparison report, or return UNKNOWN."""
+    m = re.search(r"\b(POOR|FAIR|GOOD)\b", text, re.IGNORECASE)
+    return m.group(1).upper() if m else "UNKNOWN"
+
+
+# ---------------------------------------------------------------------------
+# Compare-takes prompt
+# ---------------------------------------------------------------------------
+def _build_comparison_prompt(
+    scene: str,
+    take_ref: str,
+    take_current: str,
+    character: str,
+    script_context: str = "",
+) -> str:
+    script_section = (
+        f"\n\nSCRIPT REFERENCE:\n{script_context}\n"
+        if script_context.strip()
+        else ""
+    )
+    return f"""You are an experienced on-set continuity supervisor comparing two photographs.
+
+IMAGE 1 is the REFERENCE take. IMAGE 2 is the CURRENT take being evaluated.
+
+Production details:
+  • Scene:          {scene}
+  • Reference take: {take_ref}
+  • Current take:   {take_current}
+  • Character:      {character}{script_section}
+
+Your task: identify every visible continuity difference between the two images.
+
+Provide your report in exactly these four sections:
+
+1. **Makeup & Hair differences** — note any change in foundation, lip colour, eye makeup, SFX wounds, hair position, flyaways, stubble length. If identical, state "No differences detected."
+2. **Wardrobe differences** — note any change in collar position, buttons, garment distressing, accessories, jewellery. If identical, state "No differences detected."
+3. **Props differences** — note any change in hand-held or on-body props. If identical, state "No differences detected."
+4. **Overall assessment**
+   - Continuity risk: LOW / MEDIUM / HIGH
+   - Match score: GOOD (minor or no issues) / FAIR (some fixable issues) / POOR (significant mismatches)
+   - Summary: one sentence describing the most critical discrepancy, or "Takes match well."
+
+Be precise: describe exact location and nature of each difference (e.g. "collar popped in reference, flat in current", "SFX wound appears lighter/smaller in current take").
+Do not describe elements that are the same between the two images."""
+
+
+# ---------------------------------------------------------------------------
+# Compare-takes route
+# ---------------------------------------------------------------------------
+@app.post("/api/compare-takes")
+async def compare_takes(
+    scene: str = Form(...),
+    take_ref: str = Form(...),
+    take_current: str = Form(...),
+    character: str = Form(...),
+    reference: UploadFile = File(...),
+    current: UploadFile = File(...),
+    script_context: str = Form(""),
+) -> dict:
+    """
+    Accepts two images (reference take + current take) and returns a structured
+    diff report from Gemini. Publishes a takes_comparison event to Kafka.
+    """
+    ref_bytes = await reference.read()
+    cur_bytes = await current.read()
+
+    ref_content = ImageContent(
+        data=base64.b64encode(ref_bytes).decode(),
+        mime_type=reference.content_type or "image/jpeg",
+    )
+    cur_content = ImageContent(
+        data=base64.b64encode(cur_bytes).decode(),
+        mime_type=current.content_type or "image/jpeg",
+    )
+    prompt_content = TextContent(
+        text=_build_comparison_prompt(
+            scene, take_ref, take_current, character, script_context
+        )
+    )
+
+    try:
+        interaction = _get_client().interactions.create(
+            model=MODEL,
+            input=[ref_content, cur_content, prompt_content],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Gemini error: {exc}") from exc
+
+    analysis = interaction.output_text or ""
+    risk = _extract_risk(analysis)
+    match_score = _extract_match_score(analysis)
+
+    _publish_event(
+        {
+            "event": "takes_comparison",
+            "timestamp": time.time(),
+            "scene": scene,
+            "take_ref": take_ref,
+            "take_current": take_current,
+            "character": character,
+            "ref_filename": reference.filename,
+            "cur_filename": current.filename,
+            "script_grounded": bool(script_context.strip()),
+            "risk_level": risk,
+            "match_score": match_score,
+        }
+    )
+
+    return {
+        "scene": scene,
+        "take_ref": take_ref,
+        "take_current": take_current,
+        "character": character,
+        "ref_filename": reference.filename,
+        "cur_filename": current.filename,
+        "differences": analysis,
+        "risk_level": risk,
+        "match_score": match_score,
+        "script_grounded": bool(script_context.strip()),
+    }
