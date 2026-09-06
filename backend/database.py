@@ -9,6 +9,7 @@ and swap the dependency in main.py.
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -151,4 +152,44 @@ async def delete_record(record_id: int) -> bool:
         cur = await db.execute("DELETE FROM checks WHERE id = ?", (record_id,))
         await db.commit()
         return cur.rowcount > 0
+
+
+def normalize_key(val: str) -> str:
+    """Normalize whitespace and various dashes (-, –, —) for resilient screenplay matching."""
+    if not val:
+        return ""
+    s = re.sub(r"[\u2010\u2011\u2012\u2013\u2014\u2015\-]+", "-", val)
+    s = re.sub(r"\s+", " ", s)
+    return s.strip().lower()
+
+
+async def get_scene_chronology(
+    scene: str,
+    character: str,
+) -> list[dict[str, Any]]:
+    """Return all records for a scene & character in chronological order (oldest first)."""
+    norm_scene = normalize_key(scene)
+    norm_char = normalize_key(character)
+    if not norm_scene or not norm_char:
+        return []
+
+    sql = """
+        SELECT * FROM checks
+        WHERE LOWER(TRIM(character)) = LOWER(TRIM(?))
+        ORDER BY created_at ASC
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(sql, (character.strip(),)) as cur:
+            rows = await cur.fetchall()
+
+    matched = []
+    for r in rows:
+        row_dict = dict(r)
+        if normalize_key(row_dict.get("scene", "")) == norm_scene:
+            matched.append(row_dict)
+    return matched
+
+
+
 

@@ -290,6 +290,230 @@ async def upload_script(file: UploadFile = File(...)) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Risk, score, and scene memory extractors
+# ---------------------------------------------------------------------------
+def _extract_risk(text: str) -> str:
+    """Pull LOW / MEDIUM / HIGH out of the Gemini report, or return UNKNOWN."""
+    m = re.search(r"\b(LOW|MEDIUM|HIGH)\b", text, re.IGNORECASE)
+    return m.group(1).upper() if m else "UNKNOWN"
+
+
+def _extract_match_score(text: str) -> str:
+    """Pull POOR / FAIR / GOOD out of the Gemini comparison report, or return UNKNOWN."""
+    m = re.search(r"\b(POOR|FAIR|GOOD)\b", text, re.IGNORECASE)
+    return m.group(1).upper() if m else "UNKNOWN"
+
+
+def _extract_take_summary(report: str, risk: str) -> str:
+    """
+    Extract a concise 1-sentence verdict from a report (max ~140 chars)
+    to keep historical memory compact and avoid context bloat.
+    """
+    if not report:
+        return f"Risk rated {risk}"
+
+    def _clean(s: str) -> str:
+        s = re.sub(r"^\s*[-*•\d.]+\s*", "", s)
+        s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
+        s = re.sub(r"\*([^*]+)\*", r"\1", s)
+        s = re.sub(r"^(?:Rating|Risk|Score|Summary|Verdict)\s*[:—\-]\s*", "", s, flags=re.IGNORECASE)
+        s = re.sub(r"\s+", " ", s).strip()
+        if len(s) > 140:
+            return s[:137] + "..."
+        return s
+
+    # 1. Look for explicit Summary line (standard in comparison reports)
+    m = re.search(r"(?:^|\n)\s*[-*•]?\s*(?:Summary|Verdict):\s*([^\n\r]+)", report, re.IGNORECASE)
+    if m:
+        summary_text = _clean(m.group(1))
+        if summary_text:
+            return summary_text
+
+    # 2. Look for Overall continuity risk explanation (standard in check reports)
+    m = re.search(r"(?:4\.\s*\*\*Overall[^\n]*\*\*|Overall continuity risk:?)\s*([^\n\r]+)", report, re.IGNORECASE)
+    if m:
+        text = _clean(m.group(1))
+        text = re.sub(r"^(?:LOW|MEDIUM|HIGH)\s*[-—:]\s*", "", text, flags=re.IGNORECASE).strip()
+        if text:
+            return text
+
+    # 3. Fallback: first non-header, non-boilerplate descriptive line
+    for line in report.splitlines():
+        line_clean = line.strip()
+        if (
+            line_clean
+            and not line_clean.startswith("#")
+            and not line_clean.startswith("You are")
+            and "No differences detected" not in line_clean
+            and "CONTINUITY LOG" not in line_clean.upper()
+            and len(line_clean) > 10
+        ):
+            clean_str = _clean(line_clean)
+            if clean_str and len(clean_str) > 8:
+                return clean_str
+
+    return f"Risk rated {risk}"
+
+
+def _extract_key_issues(report: str) -> list[str]:
+    """
+    Extract up to 3 short phrases representing flagged discrepancies.
+    """
+    if not report:
+        return []
+    issues: list[str] = []
+    for line in report.splitlines():
+        line_clean = line.strip()
+        if not line_clean:
+            continue
+        if (
+            "No differences detected" in line_clean
+            or line_clean.startswith("#")
+            or "CONTINUITY LOG" in line_clean.upper()
+            or "Carefully examine" in line_clean
+            or "Format your response" in line_clean
+            or "Match score:" in line_clean
+            or "Continuity risk:" in line_clean
+            or "Summary:" in line_clean
+        ):
+            continue
+        m = re.search(r"^[-*•]\s*(.+)$", line_clean)
+        if m:
+            item = m.group(1).strip()
+            item = re.sub(r"\*\*([^*]+)\*\*", r"\1", item)
+            item = re.sub(r"\*([^*]+)\*", r"\1", item)
+            item = re.sub(r"\s+", " ", item).strip()
+            if 8 < len(item) < 90 and "difference" not in item.lower() and "scene:" not in item.lower():
+                issues.append(item)
+                if len(issues) >= 3:
+                    break
+    return issues
+
+
+def _format_scene_memory_prompt(
+    scene: str,
+    character: str,
+    chronology: list[dict[str, Any]],
+    max_recent: int = 4,
+) -> str:
+    """
+    Builds an ultra-compact memory summary of prior takes for the Gemini prompt.
+    Ensures context window is never bloated even with 20+ takes.
+    """
+    if not chronology:
+        return ""
+
+    total = len(chronology)
+    first_rec = chronology[0]
+    baseline_take = first_rec.get("take") or first_rec.get("take_ref") or "1"
+
+    lines = [
+        f"SCENE STATE MEMORY: Scene '{scene}', Character '{character}' has {total} previous recorded take(s).",
+        f"Established Baseline: Take {baseline_take}.",
+    ]
+
+    if total > max_recent:
+        older_count = total - max_recent
+        lines.append(f"• Takes 1 to {older_count}: Prior baseline & intermediary takes recorded in continuity log.")
+        recent_records = chronology[-max_recent:]
+    else:
+        recent_records = chronology
+
+    lines.append("Recent take verdicts:")
+    for r in recent_records:
+        t_label = r.get("take") or f"{r.get('take_ref')}->{r.get('take_current')}"
+        risk = (r.get("risk_level") or "UNKNOWN").upper()
+        summary = _extract_take_summary(r.get("report") or "", risk)
+        lines.append(f"  • Take {t_label} [{risk}]: {summary}")
+
+    active_issues = []
+    for r in recent_records:
+        for iss in _extract_key_issues(r.get("report") or ""):
+            if iss not in active_issues and len(active_issues) < 3:
+                active_issues.append(iss)
+
+    if active_issues:
+        lines.append(f"Active continuity concerns from prior takes: {'; '.join(active_issues)}.")
+
+    lines.append(
+        "Agent Directive: Cross-reference against this memory. Flag if past issues are [RESOLVED], [PERSISTENT], or if [NEW DRIFT] appeared. Note trend under 'Scene Drift Trend'."
+    )
+    return "\n".join(lines)
+
+
+def _build_scene_state(
+    scene: str,
+    character: str,
+    chronology: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """
+    Builds the structured scene state response for the API & frontend timeline.
+    """
+    if not chronology:
+        return {
+            "scene": scene,
+            "character": character,
+            "total_takes": 0,
+            "drift_status": "STABLE",
+            "baseline_take": None,
+            "timeline": [],
+            "known_discrepancies": [],
+        }
+
+    first_rec = chronology[0]
+    baseline_take = first_rec.get("take") or first_rec.get("take_ref") or "1"
+
+    risk_counts = {"LOW": 0, "MEDIUM": 0, "HIGH": 0, "UNKNOWN": 0}
+    timeline = []
+    known_issues = []
+
+    for r in chronology:
+        risk = (r.get("risk_level") or "UNKNOWN").upper()
+        risk_counts[risk] = risk_counts.get(risk, 0) + 1
+
+        take_label = r.get("take") or f"{r.get('take_ref')} vs {r.get('take_current')}"
+        summary = _extract_take_summary(r.get("report") or "", risk)
+        issues = _extract_key_issues(r.get("report") or "")
+        for iss in issues:
+            if iss not in known_issues and len(known_issues) < 5:
+                known_issues.append(iss)
+
+        timeline.append(
+            {
+                "id": r.get("id"),
+                "kind": r.get("kind"),
+                "take_label": take_label,
+                "take": r.get("take"),
+                "take_ref": r.get("take_ref"),
+                "take_current": r.get("take_current"),
+                "risk_level": risk,
+                "match_score": r.get("match_score"),
+                "created_at": r.get("created_at"),
+                "summary": summary,
+                "preview_ref_url": storage.url(r.get("preview_ref")) if r.get("preview_ref") else None,
+                "preview_cur_url": storage.url(r.get("preview_cur")) if r.get("preview_cur") else None,
+            }
+        )
+
+    if risk_counts["HIGH"] >= 2 or (risk_counts["HIGH"] >= 1 and risk_counts["MEDIUM"] >= 2):
+        drift_status = "CRITICAL"
+    elif risk_counts["HIGH"] >= 1 or risk_counts["MEDIUM"] >= 1:
+        drift_status = "DRIFTING"
+    else:
+        drift_status = "STABLE"
+
+    return {
+        "scene": scene,
+        "character": character,
+        "total_takes": len(chronology),
+        "drift_status": drift_status,
+        "baseline_take": baseline_take,
+        "timeline": timeline,
+        "known_discrepancies": known_issues,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Continuity prompt
 # ---------------------------------------------------------------------------
 def _build_prompt(
@@ -297,10 +521,21 @@ def _build_prompt(
     take: str,
     character: str,
     script_context: str = "",
+    scene_memory: str = "",
 ) -> str:
     script_section = (
         f"\n\nSCRIPT REFERENCE FOR THIS SCENE:\n{script_context}\n"
         if script_context.strip()
+        else ""
+    )
+    memory_section = (
+        f"\n\nPRIOR SCENE MEMORY (HISTORICAL CONTINUITY CONTEXT):\n{scene_memory}\n"
+        if scene_memory.strip()
+        else ""
+    )
+    drift_section = (
+        "\n5. **Scene Drift Trend** — state [RESOLVED], [PERSISTENT], or [NEW DRIFT] relative to prior takes."
+        if scene_memory.strip()
         else ""
     )
 
@@ -309,20 +544,20 @@ def _build_prompt(
 You have been given a reference photograph from the following shoot:
   • Scene:     {scene}
   • Take:      {take}
-  • Character: {character}{script_section}
+  • Character: {character}{script_section}{memory_section}
 
 Carefully examine the image and provide a structured continuity report covering:
 
 1. **Makeup & Hair** — skin tone consistency, foundation, lipstick, eye makeup, hair position/styling, flyaways.
 2. **Wardrobe** — visible clothing items, collar/lapel position, buttons, jewellery, accessories.
 3. **Props** — any hand-held or on-body props visible in frame.
-4. **Overall continuity risk** — rate as LOW / MEDIUM / HIGH and briefly explain why.
+4. **Overall continuity risk** — rate as LOW / MEDIUM / HIGH and briefly explain why.{drift_section}
 
-Format your response with the four numbered sections above.
+Format your response with the numbered sections above.
 Be concise but specific: note the exact detail (e.g. "top shirt button undone", "lipstick slightly darker on lower lip").
 {
-    "Cross-reference the script notes above and flag any deviations from the described character state."
-    if script_context.strip()
+    "Cross-reference the script notes and scene memory above and flag any deviations from established state."
+    if (script_context.strip() or scene_memory.strip())
     else "If something cannot be assessed because it is out of frame or unclear, say so explicitly rather than guessing."
 }"""
 
@@ -340,8 +575,12 @@ async def check_take(
 ) -> dict:
     """
     Accepts scene metadata, an image, and optional script context extracted
-    from an uploaded PDF. Runs Gemini continuity analysis and returns the report.
+    from an uploaded PDF. Runs Gemini continuity analysis with state tracking.
     """
+    # 1. Fetch prior scene chronology for state tracking
+    chronology = await database.get_scene_chronology(scene, character)
+    scene_memory = _format_scene_memory_prompt(scene, character, chronology)
+
     image_bytes = await file.read()
     mime_type = file.content_type or "image/jpeg"
 
@@ -350,7 +589,7 @@ async def check_take(
         mime_type=mime_type,
     )
     text_content = TextContent(
-        text=_build_prompt(scene, take, character, script_context)
+        text=_build_prompt(scene, take, character, script_context, scene_memory)
     )
 
     try:
@@ -395,6 +634,9 @@ async def check_take(
         }
     )
 
+    updated_chronology = await database.get_scene_chronology(scene, character)
+    scene_state = _build_scene_state(scene, character, updated_chronology)
+
     return {
         "id": record_id,
         "scene": scene,
@@ -405,19 +647,8 @@ async def check_take(
         "result": analysis,
         "script_grounded": bool(script_context.strip()),
         "preview_url": storage.url(preview_filename) if preview_filename else None,
+        "scene_state": scene_state,
     }
-
-
-def _extract_risk(text: str) -> str:
-    """Pull LOW / MEDIUM / HIGH out of the Gemini report, or return UNKNOWN."""
-    m = re.search(r"\b(LOW|MEDIUM|HIGH)\b", text, re.IGNORECASE)
-    return m.group(1).upper() if m else "UNKNOWN"
-
-
-def _extract_match_score(text: str) -> str:
-    """Pull POOR / FAIR / GOOD out of the Gemini comparison report, or return UNKNOWN."""
-    m = re.search(r"\b(POOR|FAIR|GOOD)\b", text, re.IGNORECASE)
-    return m.group(1).upper() if m else "UNKNOWN"
 
 
 # ---------------------------------------------------------------------------
@@ -429,10 +660,21 @@ def _build_comparison_prompt(
     take_current: str,
     character: str,
     script_context: str = "",
+    scene_memory: str = "",
 ) -> str:
     script_section = (
         f"\n\nSCRIPT REFERENCE:\n{script_context}\n"
         if script_context.strip()
+        else ""
+    )
+    memory_section = (
+        f"\n\nPRIOR SCENE MEMORY (ACCUMULATED CONTINUITY HISTORY):\n{scene_memory}\n"
+        if scene_memory.strip()
+        else ""
+    )
+    drift_instruction = (
+        "\n   - Scene Drift Trend: [RESOLVED] / [PERSISTENT] / [NEW DRIFT] with a 1-sentence explanation comparing against scene memory."
+        if scene_memory.strip()
         else ""
     )
     return f"""You are an experienced on-set continuity supervisor comparing two photographs.
@@ -443,7 +685,7 @@ Production details:
   • Scene:          {scene}
   • Reference take: {take_ref}
   • Current take:   {take_current}
-  • Character:      {character}{script_section}
+  • Character:      {character}{script_section}{memory_section}
 
 Your task: identify every visible continuity difference between the two images.
 
@@ -455,7 +697,7 @@ Provide your report in exactly these four sections:
 4. **Overall assessment**
    - Continuity risk: LOW / MEDIUM / HIGH
    - Match score: GOOD (minor or no issues) / FAIR (some fixable issues) / POOR (significant mismatches)
-   - Summary: one sentence describing the most critical discrepancy, or "Takes match well."
+   - Summary: one sentence describing the most critical discrepancy, or "Takes match well."{drift_instruction}
 
 Be precise: describe exact location and nature of each difference (e.g. "collar popped in reference, flat in current", "SFX wound appears lighter/smaller in current take").
 Do not describe elements that are the same between the two images."""
@@ -478,6 +720,10 @@ async def compare_takes(
     Accepts two images (reference take + current take) and returns a structured
     diff report from Gemini. Publishes a takes_comparison event to Kafka.
     """
+    # 1. Fetch prior scene chronology for state tracking
+    chronology = await database.get_scene_chronology(scene, character)
+    scene_memory = _format_scene_memory_prompt(scene, character, chronology)
+
     ref_bytes = await reference.read()
     cur_bytes = await current.read()
 
@@ -491,7 +737,7 @@ async def compare_takes(
     )
     prompt_content = TextContent(
         text=_build_comparison_prompt(
-            scene, take_ref, take_current, character, script_context
+            scene, take_ref, take_current, character, script_context, scene_memory
         )
     )
 
@@ -546,6 +792,9 @@ async def compare_takes(
         }
     )
 
+    updated_chronology = await database.get_scene_chronology(scene, character)
+    scene_state = _build_scene_state(scene, character, updated_chronology)
+
     return {
         "id": record_id,
         "scene": scene,
@@ -560,7 +809,25 @@ async def compare_takes(
         "script_grounded": bool(script_context.strip()),
         "preview_ref_url": storage.url(preview_ref) if preview_ref else None,
         "preview_cur_url": storage.url(preview_cur) if preview_cur else None,
+        "scene_state": scene_state,
     }
+
+
+# ---------------------------------------------------------------------------
+# Scene State & Memory endpoint
+# ---------------------------------------------------------------------------
+@app.get("/api/scene-state")
+async def get_scene_state(
+    scene: str = Query(..., description="Scene heading/name"),
+    character: str = Query(..., description="Character name"),
+) -> dict:
+    """
+    Return accumulated continuity memory, drift status (STABLE / DRIFTING / CRITICAL),
+    baseline take, and chronological take timeline for a given scene and character.
+    """
+    chronology = await database.get_scene_chronology(scene, character)
+    return _build_scene_state(scene, character, chronology)
+
 
 
 # ---------------------------------------------------------------------------

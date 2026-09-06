@@ -76,7 +76,10 @@ Aligned with the **Agentic Cinema Hackathon Guide**:
   - **Continuity Log PDF Export**: ReportLab generator outputting official Hollywood-standard continuity logs with embedded photos.
 
 - [ ] **🧠 Phase 4: Reasoning, State, & Logic Hosting**
+  - **State Tracking (Память сцены)**: Cross-take chronological continuity memory, sequential drift tracking, compact verdict synthesis without context bloat, and interactive take timeline.
+
 - [ ] **🚀 Phase 5: Deployment & Safety** 
+
 
 ---
 
