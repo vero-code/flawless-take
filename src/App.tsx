@@ -1,15 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 
-const API_URL = 'http://localhost:8000/api/check-take'
-const COMPARE_URL = 'http://localhost:8000/api/compare-takes'
-const SCRIPT_URL = 'http://localhost:8000/api/upload-script'
-const ALERTS_URL = 'http://localhost:8000/api/alerts'
+const API_BASE = 'http://localhost:8000'
+const API_URL = `${API_BASE}/api/check-take`
+const COMPARE_URL = `${API_BASE}/api/compare-takes`
+const SCRIPT_URL = `${API_BASE}/api/upload-script`
+const ALERTS_URL = `${API_BASE}/api/alerts`
+const HISTORY_URL = `${API_BASE}/api/history`
+
+function getMediaUrl(url?: string | null): string | undefined {
+  if (!url) return undefined
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`
+}
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 type CheckResult = {
+  id?: number
   scene: string
   take: string
   character: string
@@ -17,9 +26,11 @@ type CheckResult = {
   size_bytes: number
   result: string
   script_grounded: boolean
+  preview_url?: string | null
 }
 
 type CompareResult = {
+  id?: number
   scene: string
   take_ref: string
   take_current: string
@@ -30,7 +41,10 @@ type CompareResult = {
   risk_level: string
   match_score: string
   script_grounded: boolean
+  preview_ref_url?: string | null
+  preview_cur_url?: string | null
 }
+
 
 type ScriptNotes = {
   scenes: { scene_number: string; heading: string; characters: string[]; continuity_notes: string }[]
@@ -40,6 +54,26 @@ type ScriptNotes = {
 
 type Mode = 'single' | 'compare'
 type Status = 'idle' | 'loading' | 'success' | 'error'
+
+// ---------------------------------------------------------------------------
+// History record type
+// ---------------------------------------------------------------------------
+type HistoryRecord = {
+  id: number
+  kind: 'check' | 'comparison'
+  created_at: number
+  scene: string
+  character: string
+  take?: string
+  take_ref?: string
+  take_current?: string
+  risk_level: string
+  match_score?: string
+  script_grounded: number
+  report: string
+  preview_ref_url?: string
+  preview_cur_url?: string
+}
 
 // ---------------------------------------------------------------------------
 // Minimal markdown renderer — h3, bold, italic, bullets, hr
@@ -209,6 +243,162 @@ const RISK_TOAST: Record<string, string> = {
   LOW: 'toast--low',
 }
 
+// ---------------------------------------------------------------------------
+// History tab
+// ---------------------------------------------------------------------------
+function HistoryTab() {
+  const [records, setRecords] = useState<HistoryRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [expanded, setExpanded] = useState<number | null>(null)
+  const [sceneFilter, setSceneFilter] = useState('')
+  const [charFilter, setCharFilter] = useState('')
+
+  const load = async (scene = sceneFilter, char = charFilter) => {
+    setLoading(true)
+    setErrorMsg('')
+    try {
+      const params = new URLSearchParams()
+      if (scene.trim()) params.set('scene', scene.trim())
+      if (char.trim()) params.set('character', char.trim())
+      const res = await fetch(`${HISTORY_URL}?${params}`)
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+      const data = await res.json()
+      setRecords(data)
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let ignore = false
+    const fetchInitial = async () => {
+      setLoading(true)
+      try {
+        const res = await fetch(HISTORY_URL)
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+        const data = await res.json()
+        if (!ignore) setRecords(data)
+      } catch (err) {
+        if (!ignore) setErrorMsg(err instanceof Error ? err.message : String(err))
+      } finally {
+        if (!ignore) setLoading(false)
+      }
+    }
+    void fetchInitial()
+    return () => { ignore = true }
+  }, [])
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Delete this record from history?')) return
+    try {
+      const res = await fetch(`${HISTORY_URL}/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+      setRecords(prev => prev.filter(r => r.id !== id))
+      if (expanded === id) setExpanded(null)
+    } catch (err) {
+      alert(`Failed to delete record: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void load()
+  }
+
+  const handleReset = () => {
+    setSceneFilter('')
+    setCharFilter('')
+    void load('', '')
+  }
+
+  return (
+    <div className="history-tab">
+      <form className="history-filters" onSubmit={handleSearchSubmit}>
+        <input className="history-filter-input" type="text" placeholder="Filter by scene…"
+          value={sceneFilter} onChange={e => setSceneFilter(e.target.value)} />
+        <input className="history-filter-input" type="text" placeholder="Filter by character…"
+          value={charFilter} onChange={e => setCharFilter(e.target.value)} />
+        <button type="submit" className="history-refresh-btn" disabled={loading}>
+          {loading ? 'Searching…' : 'Search'}
+        </button>
+        {(sceneFilter || charFilter) && (
+          <button type="button" className="history-clear-btn" onClick={handleReset} disabled={loading}>
+            Reset
+          </button>
+        )}
+      </form>
+
+      {errorMsg && (
+        <p className="script-error">{errorMsg}</p>
+      )}
+
+      {records.length === 0 && !loading && !errorMsg && (
+        <p className="history-empty">No records found. Run a check or comparison to see history here.</p>
+      )}
+
+      <div className="history-list">
+        {records.map(r => (
+          <div key={r.id} className="history-card">
+            <div className="history-card-header" onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
+              <div className="history-header-top">
+                <div className="history-card-meta">
+                  <span className={`alert-risk risk--${r.risk_level?.toLowerCase()}`}>{r.risk_level}</span>
+                  {r.match_score && <MatchBadge score={r.match_score} />}
+                  <span className="history-kind">{r.kind === 'comparison' ? '⇄ Compare' : '● Check'}</span>
+                </div>
+                <div className="history-header-actions">
+                  <span className="history-card-date">
+                    {new Date(r.created_at * 1000).toLocaleString()}
+                  </span>
+                  <button
+                    type="button"
+                    className="history-delete-btn"
+                    title="Delete record"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void handleDelete(r.id)
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div className="history-card-title">
+                {r.character} · {r.scene}
+                {r.kind === 'check' && ` · Take ${r.take}`}
+                {r.kind === 'comparison' && ` · Take ${r.take_ref} vs ${r.take_current}`}
+              </div>
+            </div>
+
+            {expanded === r.id && (
+              <div className="history-card-body">
+                {/* Previews */}
+                {(r.preview_ref_url || r.preview_cur_url) && (
+                  <div className="history-previews">
+                    {r.preview_ref_url && (
+                      <img src={getMediaUrl(r.preview_ref_url)} className="history-preview-img"
+                        alt={r.kind === 'comparison' ? 'Reference' : 'Photo'} />
+                    )}
+                    {r.preview_cur_url && (
+                      <img src={getMediaUrl(r.preview_cur_url)} className="history-preview-img" alt="Current" />
+                    )}
+                  </div>
+                )}
+                {/* Report */}
+                <Markdown text={r.report} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+
 function AlertFeed() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const counterRef = useRef(0)
@@ -310,7 +500,10 @@ function MatchBadge({ score }: { score: string }) {
 // ---------------------------------------------------------------------------
 // Main app
 // ---------------------------------------------------------------------------
+type Page = 'check' | 'history'
+
 function App() {
+  const [page, setPage] = useState<Page>('check')
   const [mode, setMode] = useState<Mode>('single')
   const [scene, setScene] = useState('')
   const [take, setTake] = useState('')
@@ -408,6 +601,25 @@ function App() {
           <p className="subtitle">Makeup continuity check — tablet view</p>
         </div>
 
+        {/* Page nav */}
+        <div className="mode-toggle">
+          <button type="button"
+            className={`mode-btn ${page === 'check' ? 'mode-btn--active' : ''}`}
+            onClick={() => setPage('check')}>
+            Check
+          </button>
+          <button type="button"
+            className={`mode-btn ${page === 'history' ? 'mode-btn--active' : ''}`}
+            onClick={() => setPage('history')}>
+            History
+          </button>
+        </div>
+
+        {/* History page */}
+        {page === 'history' && <HistoryTab />}
+
+        {/* Check page */}
+        {page === 'check' && <>
         {/* Mode toggle */}
         <div className="mode-toggle">
           <button type="button"
@@ -489,6 +701,11 @@ function App() {
               Continuity report — {result.character} · Scene {result.scene} · Take {result.take}
               {result.script_grounded && <span className="grounded-badge"> · script grounded</span>}
             </p>
+            {result.preview_url && (
+              <div className="result-preview-container">
+                <img src={getMediaUrl(result.preview_url)} className="result-preview-img" alt={`Take ${result.take}`} />
+              </div>
+            )}
             <Markdown text={result.result} />
             <p className="result-meta-line">
               {result.filename} · {(result.size_bytes / 1024).toFixed(1)} KB
@@ -505,6 +722,16 @@ function App() {
               {' '}<MatchBadge score={compareResult.match_score} />
               {compareResult.script_grounded && <span className="grounded-badge"> · script grounded</span>}
             </p>
+            {(compareResult.preview_ref_url || compareResult.preview_cur_url) && (
+              <div className="history-previews">
+                {compareResult.preview_ref_url && (
+                  <img src={getMediaUrl(compareResult.preview_ref_url)} className="history-preview-img" alt="Reference take" />
+                )}
+                {compareResult.preview_cur_url && (
+                  <img src={getMediaUrl(compareResult.preview_cur_url)} className="history-preview-img" alt="Current take" />
+                )}
+              </div>
+            )}
             <Markdown text={compareResult.differences} />
             <p className="result-meta-line">
               REF: {compareResult.ref_filename} · CUR: {compareResult.cur_filename}
@@ -518,6 +745,7 @@ function App() {
             <p className="result-value">{errorMsg}</p>
           </div>
         )}
+        </>}
       </section>
 
       <div className="ticks"></div>

@@ -30,3 +30,12 @@ backend/__pycache__/
 **/__pycache__/
 *.py[cod]
 .env
+backend/.env
+
+# Local database & uploads
+*.db
+*.sqlite
+*.sqlite3
+backend/flawless.db
+backend/uploads/*
+!backend/uploads/.gitkeep

@@ -1,3 +1,181 @@
+/* ── History tab ─────────────────────────────────────── */
+.history-tab {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.history-filter-input {
+  font: inherit;
+  font-size: 13px;
+  flex: 1 1 140px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  outline: none;
+
+  &:focus { border-color: var(--accent); }
+}
+
+.history-refresh-btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.history-clear-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  &:hover { color: var(--text-h); border-color: var(--text); }
+}
+
+.history-empty {
+  font-size: 14px;
+  color: var(--text);
+  text-align: center;
+  padding: 32px 0;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.history-card-header {
+  padding: 12px 14px;
+  cursor: pointer;
+  background: var(--code-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: background 0.15s;
+
+  &:hover { background: var(--accent-bg); }
+}
+
+.history-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+
+  &:hover {
+    color: #e5484d;
+    background: rgba(229, 72, 77, 0.12);
+  }
+}
+
+.history-kind {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.history-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.history-card-date {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.history-card-body {
+  padding: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.history-previews {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.history-preview-img {
+  flex: 1;
+  max-height: 220px;
+  width: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.result-preview-container {
+  margin: 10px 0 16px;
+}
+
+.result-preview-img {
+  max-height: 260px;
+  width: 100%;
+  max-width: 480px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+
 /* ── Alert feed (SSE toasts) ─────────────────────────── */
 .alert-feed {
   position: fixed;

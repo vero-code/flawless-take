@@ -6,16 +6,25 @@ import json
 import logging
 import os
 import re
+import sys
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
+
+# Ensure backend/ siblings (database, storage) are importable regardless of cwd
+sys.path.insert(0, str(Path(__file__).parent))
 
 from confluent_kafka import Consumer, Producer
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.genai.interactions import DocumentContent, ImageContent, TextContent, TextResponseFormat
+
+import database
+import storage
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +106,16 @@ def _publish_event(payload: dict) -> None:
         logger.exception("Kafka produce() raised unexpectedly")
 
 
-app = FastAPI(title="Flawless Take API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await database.init_db()
+    yield
+
+
+app = FastAPI(title="Flawless Take API", lifespan=lifespan)
+
+# Serve uploaded preview images
+app.mount("/uploads", StaticFiles(directory=str(storage.UPLOADS_DIR)), name="uploads")
 
 # ---------------------------------------------------------------------------
 # CORS — allow the Vite dev server
@@ -339,6 +357,24 @@ async def check_take(
         raise HTTPException(status_code=502, detail=f"Gemini error: {exc}") from exc
 
     analysis = interaction.output_text or ""
+    risk = _extract_risk(analysis)
+
+    # Save preview image and persist to DB (best-effort)
+    try:
+        preview_filename = await storage.save(image_bytes, mime_type)
+    except Exception:
+        logger.exception("Storage save failed — continuing without preview")
+        preview_filename = None
+
+    record_id = await database.save_check(
+        scene=scene,
+        character=character,
+        take=take,
+        risk_level=risk,
+        script_grounded=bool(script_context.strip()),
+        report=analysis,
+        preview_ref=preview_filename,
+    )
 
     _publish_event(
         {
@@ -350,11 +386,12 @@ async def check_take(
             "filename": file.filename,
             "size_bytes": len(image_bytes),
             "script_grounded": bool(script_context.strip()),
-            "risk_level": _extract_risk(analysis),
+            "risk_level": risk,
         }
     )
 
     return {
+        "id": record_id,
         "scene": scene,
         "take": take,
         "character": character,
@@ -362,6 +399,7 @@ async def check_take(
         "size_bytes": len(image_bytes),
         "result": analysis,
         "script_grounded": bool(script_context.strip()),
+        "preview_url": storage.url(preview_filename) if preview_filename else None,
     }
 
 
@@ -463,6 +501,29 @@ async def compare_takes(
     analysis = interaction.output_text or ""
     risk = _extract_risk(analysis)
     match_score = _extract_match_score(analysis)
+    ref_mime = reference.content_type or "image/jpeg"
+    cur_mime = current.content_type or "image/jpeg"
+
+    # Save preview images (best-effort)
+    try:
+        preview_ref = await storage.save(ref_bytes, ref_mime)
+        preview_cur = await storage.save(cur_bytes, cur_mime)
+    except Exception:
+        logger.exception("Storage save failed — continuing without previews")
+        preview_ref = preview_cur = None
+
+    record_id = await database.save_comparison(
+        scene=scene,
+        character=character,
+        take_ref=take_ref,
+        take_current=take_current,
+        risk_level=risk,
+        match_score=match_score,
+        script_grounded=bool(script_context.strip()),
+        report=analysis,
+        preview_ref=preview_ref,
+        preview_cur=preview_cur,
+    )
 
     _publish_event(
         {
@@ -481,6 +542,7 @@ async def compare_takes(
     )
 
     return {
+        "id": record_id,
         "scene": scene,
         "take_ref": take_ref,
         "take_current": take_current,
@@ -491,4 +553,48 @@ async def compare_takes(
         "risk_level": risk,
         "match_score": match_score,
         "script_grounded": bool(script_context.strip()),
+        "preview_ref_url": storage.url(preview_ref) if preview_ref else None,
+        "preview_cur_url": storage.url(preview_cur) if preview_cur else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# History endpoints
+# ---------------------------------------------------------------------------
+@app.get("/api/history")
+async def history(
+    scene: str | None = Query(None),
+    character: str | None = Query(None),
+    limit: int = Query(100, le=500),
+) -> list[dict]:
+    """
+    Return continuity check history, newest first.
+    Optional query params: scene, character, limit.
+    """
+    records = await database.list_records(scene=scene, character=character, limit=limit)
+    # Attach preview URLs
+    for r in records:
+        r["preview_ref_url"] = storage.url(r["preview_ref"]) if r.get("preview_ref") else None
+        r["preview_cur_url"] = storage.url(r["preview_cur"]) if r.get("preview_cur") else None
+    return records
+
+
+@app.get("/api/history/{record_id}")
+async def history_record(record_id: int) -> dict:
+    """Return a single history record by id, including the full report."""
+    record = await database.get_record(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    record["preview_ref_url"] = storage.url(record["preview_ref"]) if record.get("preview_ref") else None
+    record["preview_cur_url"] = storage.url(record["preview_cur"]) if record.get("preview_cur") else None
+    return record
+
+
+@app.delete("/api/history/{record_id}")
+async def delete_history_record(record_id: int) -> dict[str, str]:
+    """Delete a single history record by id."""
+    deleted = await database.delete_record(record_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Record not found")
+    return {"status": "deleted", "id": str(record_id)}
+
