@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -8,10 +9,11 @@ import re
 import time
 from pathlib import Path
 
-from confluent_kafka import Producer
+from confluent_kafka import Consumer, Producer
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from google import genai
 from google.genai.interactions import DocumentContent, ImageContent, TextContent, TextResponseFormat
 
@@ -115,6 +117,80 @@ app.add_middleware(
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Alerts — SSE stream that consumes flawless-take-events from Kafka
+# ---------------------------------------------------------------------------
+def _make_consumer() -> Consumer | None:
+    """Create a fresh Kafka Consumer. Returns None if credentials are absent."""
+    bootstrap = os.getenv("CONFLUENT_BOOTSTRAP_SERVERS")
+    api_key = os.getenv("CONFLUENT_API_KEY")
+    api_secret = os.getenv("CONFLUENT_API_SECRET")
+    if not all([bootstrap, api_key, api_secret]):
+        return None
+    c = Consumer(
+        {
+            "bootstrap.servers": bootstrap,
+            "security.protocol": "SASL_SSL",
+            "sasl.mechanisms": "PLAIN",
+            "sasl.username": api_key,
+            "sasl.password": api_secret,
+            "group.id": f"flawless-alerts-{int(time.time())}",  # unique group → always read latest
+            "auto.offset.reset": "latest",
+            "enable.auto.commit": True,
+        }
+    )
+    c.subscribe([KAFKA_TOPIC])
+    return c
+
+
+async def _sse_generator():
+    """Yield SSE-formatted strings by polling Kafka in a thread pool."""
+    loop = asyncio.get_event_loop()
+    consumer = await loop.run_in_executor(None, _make_consumer)
+
+    if consumer is None:
+        yield "data: {\"error\": \"Kafka not configured\"}\n\n"
+        return
+
+    # send a heartbeat immediately so the browser connection opens
+    yield ": heartbeat\n\n"
+
+    try:
+        while True:
+            msg = await loop.run_in_executor(None, lambda: consumer.poll(1.0))
+            if msg is None:
+                # no message — send keep-alive comment so the connection stays open
+                yield ": keep-alive\n\n"
+                continue
+            if msg.error():
+                logger.error("Kafka consumer error: %s", msg.error())
+                yield f"data: {{\"error\": \"{msg.error()}\"}}\n\n"
+                continue
+            try:
+                payload = json.loads(msg.value().decode())
+            except Exception:
+                continue
+            yield f"data: {json.dumps(payload)}\n\n"
+    finally:
+        await loop.run_in_executor(None, consumer.close)
+
+
+@app.get("/api/alerts")
+async def alerts():
+    """
+    Server-Sent Events stream. Connect with EventSource('/api/alerts').
+    Each event is a JSON-encoded Kafka message from flawless-take-events.
+    """
+    return StreamingResponse(
+        _sse_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # disable nginx buffering if proxied
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

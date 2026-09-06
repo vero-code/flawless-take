@@ -1,3 +1,92 @@
+/* ── Alert feed (SSE toasts) ─────────────────────────── */
+.alert-feed {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  z-index: 100;
+  pointer-events: none;
+  max-width: 360px;
+  width: calc(100vw - 48px);
+}
+
+.alert-toast {
+  pointer-events: all;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  animation: toast-in 0.2s ease;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.toast--high {
+  border-left: 3px solid #ef4444;
+}
+
+.toast--medium {
+  border-left: 3px solid #eab308;
+}
+
+.toast--low {
+  border-left: 3px solid #22c55e;
+}
+
+.alert-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text);
+}
+
+.alert-scene {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  line-height: 1.4;
+}
+
+.alert-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.alert-risk {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 99px;
+}
+
+.risk--high   { background: rgba(239,68,68,0.12);  color: #dc2626; }
+.risk--medium { background: rgba(234,179,8,0.12);  color: #a16207; }
+.risk--low    { background: rgba(34,197,94,0.12);  color: #16a34a; }
+
+.alert-score {
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* ── Mode toggle ─────────────────────────────────────── */
 .mode-toggle {
   display: flex;

@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 
 const API_URL = 'http://localhost:8000/api/check-take'
 const COMPARE_URL = 'http://localhost:8000/api/compare-takes'
 const SCRIPT_URL = 'http://localhost:8000/api/upload-script'
+const ALERTS_URL = 'http://localhost:8000/api/alerts'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -185,6 +186,86 @@ function ScriptPanel({ onContext }: { onContext: (ctx: string) => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Alert feed — SSE consumer + toast overlay
+// ---------------------------------------------------------------------------
+type AlertEvent = {
+  event: string
+  scene?: string
+  take?: string
+  take_ref?: string
+  take_current?: string
+  character?: string
+  risk_level?: string
+  match_score?: string
+  script_grounded?: boolean
+  timestamp?: number
+}
+
+type Toast = AlertEvent & { id: number }
+
+const RISK_TOAST: Record<string, string> = {
+  HIGH: 'toast--high',
+  MEDIUM: 'toast--medium',
+  LOW: 'toast--low',
+}
+
+function AlertFeed() {
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const counterRef = useRef(0)
+
+  useEffect(() => {
+    const es = new EventSource(ALERTS_URL)
+
+    es.onmessage = (e) => {
+      try {
+        const payload: AlertEvent = JSON.parse(e.data)
+        if (payload.event !== 'continuity_check' && payload.event !== 'takes_comparison') return
+        const id = ++counterRef.current
+        setToasts(prev => [...prev.slice(-4), { ...payload, id }])
+        // auto-dismiss after 8 s
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 8000)
+      } catch {
+        // ignore malformed messages
+      }
+    }
+
+    es.onerror = () => {
+      // browser will reconnect automatically; nothing to do
+    }
+
+    return () => es.close()
+  }, [])
+
+  if (toasts.length === 0) return null
+
+  return (
+    <div className="alert-feed" aria-live="polite">
+      {toasts.map(t => (
+        <div
+          key={t.id}
+          className={`alert-toast ${RISK_TOAST[t.event === 'takes_comparison' ? (t.risk_level ?? '') : (t.risk_level ?? '')] ?? ''}`}
+          onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
+        >
+          <span className="alert-tag">
+            {t.event === 'takes_comparison' ? '⇄ Compare' : '● Check'}
+          </span>
+          <span className="alert-scene">
+            {t.character} · {t.scene}
+            {t.event === 'takes_comparison'
+              ? ` · Take ${t.take_ref} vs ${t.take_current}`
+              : ` · Take ${t.take}`}
+          </span>
+          <span className="alert-meta">
+            {t.risk_level && <span className={`alert-risk risk--${t.risk_level?.toLowerCase()}`}>{t.risk_level}</span>}
+            {t.match_score && <span className="alert-score">{t.match_score}</span>}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Reusable image drop zone
 // ---------------------------------------------------------------------------
 function ImageDrop({
@@ -193,7 +274,7 @@ function ImageDrop({
   id: string
   label: string
   preview: string | null
-  inputRef: React.RefObject<HTMLInputElement>
+  inputRef: React.RefObject<HTMLInputElement | null>
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
@@ -320,6 +401,7 @@ function App() {
 
   return (
     <>
+      <AlertFeed />
       <section id="center">
         <div>
           <h1>Flawless Take</h1>
