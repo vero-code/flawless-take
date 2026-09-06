@@ -1,0 +1,189 @@
+{
+  "$schema": "https://raw.githubusercontent.com/google/adk-python/main/schemas/agent_manifest.json",
+  "name": "flawless-take-continuity-supervisor",
+  "version": "1.0.0",
+  "display_name": "Flawless Take Continuity Supervisor",
+  "description": "Autonomous AI Continuity Supervisor for film and television productions, detecting visual drift, coordinating departments, and dispatching on-set crew alerts.",
+  "author": "Flawless Take Team",
+  "framework": "Google Cloud Agent Development Kit (ADK)",
+  "runtime": {
+    "type": "python",
+    "version": ">=3.11",
+    "entrypoint": "agent_engine.agent:ContinuitySupervisorAgent",
+    "serverless_app": "agent_engine.serverless_app:app"
+  },
+  "model": {
+    "provider": "google",
+    "name": "gemini-3.8-flash",
+    "fallback": "gemini-2.5-flash",
+    "temperature": 0.4
+  },
+  "environment": {
+    "required": [
+      "GEMINI_API_KEY"
+    ],
+    "optional": [
+      "GOOGLE_CLOUD_PROJECT",
+      "GOOGLE_CLOUD_LOCATION",
+      "KAFKA_BOOTSTRAP_SERVERS"
+    ]
+  },
+  "capabilities": [
+    "automatic-function-calling",
+    "multi-turn-memory",
+    "script-grounding",
+    "crew-alerting",
+    "department-action-checklist",
+    "model-context-protocol"
+  ],
+  "tools": [
+    {
+      "name": "get_scene_continuity_state",
+      "description": "Inspects continuity state for a scene: baseline take, total takes, active flags, and drift status (STABLE, DRIFTING, CRITICAL).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scene": {
+            "type": "string",
+            "description": "Scene identifier (e.g. 'Scene 14A')."
+          }
+        },
+        "required": ["scene"]
+      }
+    },
+    {
+      "name": "query_take_records",
+      "description": "Queries historical take records from local or production database, optionally filtered by scene, character, and risk.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scene": {
+            "type": "string",
+            "description": "Optional scene filter (e.g. 'Scene 12')."
+          },
+          "character": {
+            "type": "string",
+            "description": "Optional character name filter."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of records to return (default 5)."
+          }
+        }
+      }
+    },
+    {
+      "name": "get_take_full_report",
+      "description": "Retrieves the full continuity analysis report and photo preview URLs for a specific record ID.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "record_id": {
+            "type": "integer",
+            "description": "Database ID of the take record."
+          }
+        },
+        "required": ["record_id"]
+      }
+    },
+    {
+      "name": "check_script_continuity",
+      "description": "Retrieves shooting script guidelines and character continuity notes for hair, makeup, wardrobe, and props.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scene": {
+            "type": "string",
+            "description": "Scene name/number to look up."
+          },
+          "character": {
+            "type": "string",
+            "description": "Optional character name to filter requirements."
+          }
+        },
+        "required": ["scene"]
+      }
+    },
+    {
+      "name": "compare_recorded_takes",
+      "description": "Retrieves the differential comparison between two recorded takes, returning match score and visual deviations.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "take_a_id": {
+            "type": "integer",
+            "description": "ID of reference take."
+          },
+          "take_b_id": {
+            "type": "integer",
+            "description": "ID of current take."
+          }
+        },
+        "required": ["take_a_id", "take_b_id"]
+      }
+    },
+    {
+      "name": "emit_crew_alert",
+      "description": "Emits an urgent on-set alert to production departments via Kafka event stream and live SSE broadcast.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "department": {
+            "type": "string",
+            "description": "Department name ('makeup', 'wardrobe', 'hair', 'props', 'director')."
+          },
+          "urgency": {
+            "type": "string",
+            "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+            "description": "Alert severity level."
+          },
+          "message": {
+            "type": "string",
+            "description": "Specific actionable message describing the issue."
+          },
+          "scene": {
+            "type": "string",
+            "description": "Scene identifier where violation occurred."
+          }
+        },
+        "required": ["department", "urgency", "message", "scene"]
+      }
+    },
+    {
+      "name": "export_continuity_pdf",
+      "description": "Generates an official Hollywood-standard Script Supervisor Continuity Log PDF report.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "record_id": {
+            "type": "integer",
+            "description": "Database ID of the take record to export."
+          }
+        },
+        "required": ["record_id"]
+      }
+    },
+    {
+      "name": "generate_department_checklist",
+      "description": "Synthesizes detected continuity violations into a structured department-keyed fix checklist (makeup, wardrobe, hair, props) before next take.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scene": {
+            "type": "string",
+            "description": "Scene identifier (e.g. 'Scene 14A')."
+          },
+          "character": {
+            "type": "string",
+            "description": "Character name (e.g. 'Detective Miller')."
+          },
+          "violations_summary": {
+            "type": "string",
+            "description": "Summary of visual discrepancies or drift detected in recent takes."
+          }
+        },
+        "required": ["scene", "violations_summary"]
+      }
+    }
+  ]
+}

@@ -75,12 +75,15 @@ Aligned with the **Agentic Cinema Hackathon Guide**:
   - **Daily Continuity Gallery**: Asynchronous SQLite (`aiosqlite`) persistence and searchable history for on-set review.
   - **Continuity Log PDF Export**: ReportLab generator outputting official Hollywood-standard continuity logs with embedded photos.
 
-- [ ] **🧠 Phase 4: Reasoning, State, & Logic Hosting**
+- [x] **🧠 Phase 4: Reasoning, State, & Logic Hosting**
   - [x] **State Tracking (Scene Memory)**: Cross-take chronological continuity memory, sequential drift tracking, compact verdict synthesis without context bloat, and interactive take timeline.
-  - [x] **Function Calling & Tool Use (Autonomous Agent Copilot)**: Native Automatic Function Calling (AFC) with `gemini-3.8-flash`, autonomous multi-step execution across 7 production tools (SQLite query, script checking, take diff comparison, Kafka/SSE radio alerts, PDF generation), and interactive Tool Execution Traces.
-  - [ ] **Agent Engine & Managed Hosting**: Managed hosting and deployment on Vertex AI Agent Engine.
+  - [x] **Function Calling & Tool Use (Autonomous Agent Copilot)**: Native Automatic Function Calling (AFC) with `gemini-3.8-flash`, autonomous multi-step execution across 8 production tools, and interactive Tool Execution Traces.
+  - [x] **Actionable Fixes (Department Action Checklist)**: Autonomous synthesis of department-specific fix checklists (`generate_department_checklist`) for Makeup, Wardrobe, Hair, and Props before next take.
+  - [x] **Hands-Free Voice Mode**: On-set hands-free voice commanding via browser-native SpeechRecognition & SpeechSynthesis with auto-listen continuity.
+  - [x] **Studio MCP Server**: Model Context Protocol (MCP) server exposing 8 tools via SSE (`/mcp/sse`) and stdio for NLE suites and external assistants.
+  - [x] **Agent Engine & Managed Hosting (Google Cloud ADK / Vertex AI)**: Packaged according to Google Cloud Agent Development Kit (ADK) and Vertex AI Reasoning Engine standards for serverless deployment (`agent_engine/`, `Dockerfile.agent_engine`, `deploy_vertex.py`).
 
-- [ ] **🚀 Phase 5: Deployment & Safety** 
+- [ ] **🚀 Phase 5: Deployment & Safety**
 
 
 ---
@@ -205,6 +208,90 @@ npx @modelcontextprotocol/inspector http://localhost:8000/mcp/sse
 cd backend
 python mcp_server.py
 ```
+
+---
+
+## Google Cloud Agent Engine & ADK Packaging
+
+Flawless Take's continuity supervisor agent is packaged following the official **Google Cloud Agent Development Kit (ADK)** and **Vertex AI Reasoning Engine** architecture for serverless hosting.
+
+### Package Structure
+
+```
+backend/agent_engine/
+├── __init__.py           # Exports ContinuitySupervisorAgent
+├── agent.py              # ADK & Vertex AI Reasoning Engine compliant Agent (set_up, query, async_query)
+├── manifest.json         # Standard ADK Agent Manifest (8 tools, schema, model config)
+├── deploy_vertex.py      # Vertex AI Reasoning Engine automated deployment script
+├── serverless_app.py     # Cloud Run / Serverless ASGI runtime (/health, /spec, /query)
+└── test_local.py         # Offline ADK agent test harness
+Dockerfile.agent_engine   # Production serverless container for Cloud Run & Vertex AI
+```
+
+### 1. Local ADK Verification
+
+Test that the ADK agent manifest, tool bindings, and Reasoning Engine contract pass locally:
+
+```bash
+python backend/agent_engine/test_local.py
+```
+
+Or inspect the ADK manifest via the running backend API:
+
+```bash
+curl http://localhost:8000/api/agent-engine/info
+```
+
+### 2. Deploy to Google Cloud Vertex AI Agent Engine
+
+Deploy directly into Vertex AI Reasoning Engine managed serverless runtime:
+
+```bash
+# Authenticate with Google Cloud
+gcloud auth application-default login
+
+# Deploy using the deployment script
+python backend/agent_engine/deploy_vertex.py \
+  --project YOUR_GCP_PROJECT_ID \
+  --location us-central1 \
+  --staging-bucket gs://your-staging-bucket \
+  --display-name "flawless-take-continuity-supervisor"
+```
+
+Once deployed, remote NLEs and cloud services can query the agent:
+
+```python
+from vertexai.preview import reasoning_engines
+
+agent = reasoning_engines.ReasoningEngine("projects/.../locations/.../reasoningEngines/...")
+result = agent.query(
+    prompt="Check for continuity drift in Scene 14A",
+    scene="Scene 14A"
+)
+print(result["response"])
+```
+
+### 3. Serverless Container on Google Cloud Run
+
+Build and deploy the self-contained ADK serverless container to Google Cloud Run:
+
+```bash
+# Build container image
+docker build -f Dockerfile.agent_engine -t gcr.io/YOUR_PROJECT/flawless-take-agent-engine:latest .
+
+# Deploy to Cloud Run
+gcloud run deploy flawless-take-agent-engine \
+  --image gcr.io/YOUR_PROJECT/flawless-take-agent-engine:latest \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars GEMINI_API_KEY=your_gemini_api_key
+```
+
+The deployed Cloud Run service provides:
+- `GET /health` — Liveness and readiness probe.
+- `GET /spec` — Returns the official Google Cloud ADK agent manifest.
+- `POST /query` — Processes agent queries with multi-step tool calling.
 
 ---
 

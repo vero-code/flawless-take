@@ -187,6 +187,36 @@ async def mcp_info() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Phase 4 Step 6: Google Cloud Agent Development Kit (ADK) & Agent Engine Info
+# ---------------------------------------------------------------------------
+@app.get("/api/agent-engine/info")
+async def agent_engine_info() -> dict:
+    """Return Google Cloud ADK Agent Engine packaging status and specifications."""
+    manifest_file = Path(__file__).parent / "agent_engine" / "manifest.json"
+    manifest_data = {}
+    if manifest_file.exists():
+        with open(manifest_file, "r", encoding="utf-8") as f:
+            manifest_data = json.load(f)
+
+    return {
+        "status": "ready",
+        "framework": "Google Cloud Agent Development Kit (ADK)",
+        "agent_name": manifest_data.get("name", "flawless-take-continuity-supervisor"),
+        "version": manifest_data.get("version", "1.0.0"),
+        "model": manifest_data.get("model", {}).get("name", "gemini-3.8-flash"),
+        "entrypoint": "agent_engine.agent:ContinuitySupervisorAgent",
+        "serverless_app": "agent_engine.serverless_app:app",
+        "tools_count": len(manifest_data.get("tools", [])),
+        "deployment_targets": [
+            "Google Cloud Vertex AI Reasoning Engine / Agent Engine",
+            "Google Cloud Run (Serverless Container)",
+        ],
+        "dockerfile": "Dockerfile.agent_engine",
+        "manifest": manifest_data,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Alerts — SSE stream that consumes flawless-take-events from Kafka
 # ---------------------------------------------------------------------------
 def _make_consumer() -> Consumer | None:
