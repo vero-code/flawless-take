@@ -730,7 +730,7 @@ function SceneMemoryTimeline({
 }
 
 // ---------------------------------------------------------------------------
-// Phase 4 Step 2: Agent Copilot Types & Components
+// Phase 4 Step 2 & 3: Agent Copilot Types & Components
 // ---------------------------------------------------------------------------
 const AGENT_QUERY_URL = `${API_BASE}/api/agent/query`
 
@@ -738,6 +738,21 @@ type ToolTraceItem = {
   tool: string
   args: Record<string, any>
   result: any
+}
+
+type DepartmentChecklist = {
+  next_take: string
+  scene: string
+  character: string
+  priority: 'HIGH' | 'MEDIUM' | 'LOW'
+  departments: {
+    makeup: string[]
+    wardrobe: string[]
+    hair: string[]
+    props: string[]
+  }
+  generated_at?: number
+  status?: string
 }
 
 type AgentChatMessage = {
@@ -749,23 +764,103 @@ type AgentChatMessage = {
   timestamp: number
 }
 
+// ---------------------------------------------------------------------------
+// DepartmentChecklistCard — renders structured fix checklist per department
+// ---------------------------------------------------------------------------
+const DEPT_META: Record<string, { icon: string; label: string }> = {
+  makeup:   { icon: '💄', label: 'Makeup' },
+  wardrobe: { icon: '👔', label: 'Wardrobe' },
+  hair:     { icon: '💇', label: 'Hair' },
+  props:    { icon: '🎭', label: 'Props' },
+}
+
+function DepartmentChecklistCard({ checklist }: { checklist: DepartmentChecklist }) {
+  const priorityClass = {
+    HIGH:   'dept-priority--high',
+    MEDIUM: 'dept-priority--medium',
+    LOW:    'dept-priority--low',
+  }[checklist.priority] ?? 'dept-priority--low'
+
+  const depts = checklist.departments || {}
+  const hasAnyFix = Object.values(depts).some(items => items.length > 0)
+
+  return (
+    <div className="dept-checklist-card">
+      <div className="dept-checklist-header">
+        <div className="dept-checklist-title">
+          <span className="dept-checklist-icon">📋</span>
+          <span>Department Action Checklist</span>
+        </div>
+        <div className="dept-checklist-badges">
+          {checklist.next_take && (
+            <span className="dept-badge dept-badge--take">Before Take {checklist.next_take}</span>
+          )}
+          <span className={`dept-badge dept-priority ${priorityClass}`}>{checklist.priority}</span>
+        </div>
+      </div>
+
+      {checklist.scene && (
+        <div className="dept-checklist-meta">
+          🎬 {checklist.scene} · 👤 {checklist.character}
+        </div>
+      )}
+
+      {!hasAnyFix && (
+        <div className="dept-no-issues">✅ No department fixes required — continuity is intact.</div>
+      )}
+
+      <div className="dept-sections">
+        {(Object.keys(DEPT_META) as Array<keyof typeof DEPT_META>).map(dept => {
+          const items: string[] = (depts as any)[dept] || []
+          const meta = DEPT_META[dept]
+          return (
+            <div key={dept} className={`dept-section ${items.length === 0 ? 'dept-section--empty' : ''}`}>
+              <div className="dept-section-header">
+                <span className="dept-section-icon">{meta.icon}</span>
+                <span className="dept-section-label">{meta.label}</span>
+                {items.length > 0 && (
+                  <span className="dept-section-count">{items.length} fix{items.length > 1 ? 'es' : ''}</span>
+                )}
+              </div>
+              {items.length > 0 ? (
+                <ul className="dept-items">
+                  {items.map((item, i) => (
+                    <li key={i} className="dept-item">
+                      <span className="dept-item-checkbox">☐</span>
+                      <span className="dept-item-text">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="dept-empty">No issues for this department.</p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function ToolTraceCard({ trace }: { trace: ToolTraceItem }) {
   const [open, setOpen] = useState(false)
 
   const toolIcons: Record<string, string> = {
-    get_scene_continuity_state: '🎬',
-    query_take_records: '🔍',
-    get_take_full_report: '📋',
-    check_script_continuity: '📜',
-    compare_recorded_takes: '⚖️',
-    emit_crew_alert: '🚨',
-    export_continuity_pdf: '📄',
+    get_scene_continuity_state:    '🎬',
+    query_take_records:            '🔍',
+    get_take_full_report:          '📋',
+    check_script_continuity:       '📜',
+    compare_recorded_takes:        '⚖️',
+    emit_crew_alert:               '🚨',
+    export_continuity_pdf:         '📄',
+    generate_department_checklist: '✅',
   }
   const icon = toolIcons[trace.tool] || '⚙️'
 
-  const isPdf = trace.tool === 'export_continuity_pdf'
-  const isAlert = trace.tool === 'emit_crew_alert'
-  const isState = trace.tool === 'get_scene_continuity_state'
+  const isPdf        = trace.tool === 'export_continuity_pdf'
+  const isAlert      = trace.tool === 'emit_crew_alert'
+  const isState      = trace.tool === 'get_scene_continuity_state'
+  const isChecklist  = trace.tool === 'generate_department_checklist'
 
   return (
     <div className="tool-trace-card">
@@ -775,8 +870,9 @@ function ToolTraceCard({ trace }: { trace: ToolTraceItem }) {
           <span className="tool-trace-name">{trace.tool}</span>
         </span>
         <div className="tool-trace-meta">
-          {isAlert && <span className="trace-status-pill trace-status-pill--alert">BROADCASTED</span>}
-          {isPdf && <span className="trace-status-pill trace-status-pill--pdf">PDF READY</span>}
+          {isAlert     && <span className="trace-status-pill trace-status-pill--alert">BROADCASTED</span>}
+          {isPdf       && <span className="trace-status-pill trace-status-pill--pdf">PDF READY</span>}
+          {isChecklist && <span className="trace-status-pill trace-status-pill--checklist">CHECKLIST READY</span>}
           {isState && trace.result?.drift_status && (
             <span className={`trace-status-pill trace-status-pill--${String(trace.result.drift_status).toLowerCase()}`}>
               {trace.result.drift_status}
@@ -808,16 +904,23 @@ function ToolTraceCard({ trace }: { trace: ToolTraceItem }) {
         </div>
       )}
 
+      {/* Inline Department Checklist — always visible when checklist tool ran */}
+      {isChecklist && trace.result?.departments && !trace.result?.error && (
+        <DepartmentChecklistCard checklist={trace.result as DepartmentChecklist} />
+      )}
+
       {open && (
         <div className="tool-trace-body">
           <div className="tool-trace-section">
             <span className="tool-trace-section-title">Arguments:</span>
             <pre className="tool-trace-code">{JSON.stringify(trace.args, null, 2)}</pre>
           </div>
-          <div className="tool-trace-section">
-            <span className="tool-trace-section-title">Output Result:</span>
-            <pre className="tool-trace-code">{JSON.stringify(trace.result, null, 2)}</pre>
-          </div>
+          {!isChecklist && (
+            <div className="tool-trace-section">
+              <span className="tool-trace-section-title">Output Result:</span>
+              <pre className="tool-trace-code">{JSON.stringify(trace.result, null, 2)}</pre>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -920,6 +1023,10 @@ function AgentCopilotView({
     {
       label: '⚖️ Compare Latest Takes',
       text: `Compare Take 1 and Take 2 in scene "${scene || 'EXT. ROOFTOP - NIGHT'}" for ${character || 'Alice'} and highlight continuity risks.`,
+    },
+    {
+      label: '📋 Generate Fix Checklist',
+      text: `Check continuity for "${character || 'Alice'}" in scene "${scene || 'EXT. ROOFTOP - NIGHT'}", identify all discrepancies, and generate a department action checklist for the crew before the next take.`,
     },
   ]
 

@@ -8,8 +8,11 @@ Defines callable tools with Google GenAI function calling schemas for:
 - Comparing recorded takes
 - Emitting real-time continuity alerts to Kafka topic & SSE crew feed
 - Generating and exporting official PDF continuity logs
+- Synthesizing discovered violations into a structured department action checklist
 """
+import json
 import logging
+import os
 import time
 from typing import Callable
 
@@ -261,4 +264,93 @@ async def export_continuity_pdf(record_id: int) -> dict:
             "take": rec.get("take") or f"{rec.get('take_ref')}_vs_{rec.get('take_current')}",
         }
     except Exception as exc:
+        return {"error": str(exc)}
+
+
+async def generate_department_checklist(
+    scene: str,
+    character: str,
+    discrepancies: str,
+    next_take: str = "",
+) -> dict:
+    """
+    Synthesize a list of identified continuity discrepancies into a structured,
+    department-ready action checklist for makeup, wardrobe, hair, and props crews.
+    Call this tool after identifying violations via get_scene_continuity_state or compare_recorded_takes.
+    Args:
+        scene: Scene heading (e.g. 'EXT. ROOFTOP - NIGHT')
+        character: Character name (e.g. 'Alice')
+        discrepancies: Plain-text description of all identified continuity violations,
+                       one violation per line or comma-separated.
+        next_take: The upcoming take number these fixes must be applied before (e.g. '3')
+    Returns:
+        Structured JSON checklist keyed by department with priority and timestamp.
+    """
+    try:
+        from google import genai
+        from google.genai import types as gtypes
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return {"error": "GEMINI_API_KEY not set"}
+
+        client = genai.Client(api_key=api_key)
+
+        synthesis_prompt = f"""\
+You are a Hollywood script supervisor. Based on the following continuity discrepancies found on set, \
+create a structured action checklist for each crew department.
+
+Scene: {scene}
+Character: {character}
+Before Take: {next_take or 'next take'}
+
+Identified Discrepancies:
+{discrepancies}
+
+Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
+{{
+  "next_take": "{next_take or 'next'}",
+  "scene": "{scene}",
+  "character": "{character}",
+  "priority": "HIGH" | "MEDIUM" | "LOW",
+  "departments": {{
+    "makeup": ["<specific actionable fix>", ...],
+    "wardrobe": ["<specific actionable fix>", ...],
+    "hair": ["<specific actionable fix>", ...],
+    "props": ["<specific actionable fix>", ...]
+  }},
+  "generated_at": {int(time.time())}
+}}
+
+Be extremely specific and concise. Each fix must be a single, executable instruction for the crew member.
+If a department has no issues, use an empty array [].
+"""
+
+        resp = await client.aio.models.generate_content(
+            model="gemini-3.8-flash",
+            contents=synthesis_prompt,
+            config=gtypes.GenerateContentConfig(
+                temperature=0.2,
+                response_mime_type="application/json",
+            ),
+        )
+
+        raw = (resp.text or "").strip()
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+
+        checklist = json.loads(raw)
+        checklist["status"] = "generated"
+        logger.info("Department checklist generated for %s / %s", scene, character)
+        return checklist
+
+    except json.JSONDecodeError as exc:
+        logger.exception("Checklist JSON parse failed")
+        return {"error": f"Failed to parse checklist JSON: {exc}", "raw": raw if 'raw' in dir() else ""}
+    except Exception as exc:
+        logger.exception("generate_department_checklist failed")
         return {"error": str(exc)}

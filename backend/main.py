@@ -933,5 +933,36 @@ async def agent_query_endpoint(req: AgentQueryRequest) -> dict:
         raise HTTPException(status_code=500, detail=f"Agent execution error: {exc}") from exc
 
 
+# ---------------------------------------------------------------------------
+# Phase 4 Step 3: Direct Department Action Checklist endpoint
+# ---------------------------------------------------------------------------
+class ChecklistRequest(BaseModel):
+    scene: str
+    character: str
+    discrepancies: str            # plain-text violations, one per line or comma-separated
+    next_take: str = ""
 
 
+@app.post("/api/agent/checklist")
+async def generate_checklist_endpoint(req: ChecklistRequest) -> dict:
+    """
+    Directly invoke the generate_department_checklist tool without a full agent loop.
+    Returns a structured department action checklist JSON.
+    """
+    if not req.discrepancies.strip():
+        raise HTTPException(status_code=400, detail="discrepancies cannot be empty")
+    try:
+        result = await agent_tools.generate_department_checklist(
+            scene=req.scene,
+            character=req.character,
+            discrepancies=req.discrepancies,
+            next_take=req.next_take,
+        )
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Checklist generation failed")
+        raise HTTPException(status_code=500, detail=f"Checklist generation error: {exc}") from exc

@@ -1368,3 +1368,186 @@
 }
 
 
+/* ── Phase 4 Step 3: Department Action Checklist ───────── */
+.dept-checklist-card {
+  margin-top: 10px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(15, 35, 55, 0.85) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+
+.dept-checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px 8px;
+  background: rgba(14, 165, 233, 0.08);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+.dept-checklist-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dept-checklist-icon {
+  font-size: 0.9rem;
+}
+
+.dept-checklist-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.dept-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dept-badge--take {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.dept-priority--high {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.dept-priority--medium {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.dept-priority--low {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.dept-checklist-meta {
+  padding: 5px 14px;
+  font-size: 0.7rem;
+  color: #64748b;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.dept-no-issues {
+  padding: 12px 14px;
+  font-size: 0.8rem;
+  color: #4ade80;
+}
+
+.dept-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+@media (max-width: 600px) {
+  .dept-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dept-section {
+  padding: 10px 14px;
+  border-right: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.dept-section:nth-child(2n) {
+  border-right: none;
+}
+
+.dept-section--empty {
+  opacity: 0.45;
+}
+
+.dept-section-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.dept-section-icon {
+  font-size: 0.9rem;
+}
+
+.dept-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex: 1;
+}
+
+.dept-section-count {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.18);
+  color: #38bdf8;
+}
+
+.dept-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dept-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.dept-item-checkbox {
+  font-size: 0.85rem;
+  color: #38bdf8;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.dept-item-text {
+  font-size: 0.74rem;
+  color: #e2e8f0;
+  line-height: 1.4;
+}
+
+.dept-empty {
+  font-size: 0.7rem;
+  color: #475569;
+  font-style: italic;
+  margin: 0;
+}
+
+/* Checklist status pill */
+.trace-status-pill--checklist {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
