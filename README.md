@@ -76,7 +76,9 @@ Aligned with the **Agentic Cinema Hackathon Guide**:
   - **Continuity Log PDF Export**: ReportLab generator outputting official Hollywood-standard continuity logs with embedded photos.
 
 - [ ] **🧠 Phase 4: Reasoning, State, & Logic Hosting**
-  - **State Tracking (Память сцены)**: Cross-take chronological continuity memory, sequential drift tracking, compact verdict synthesis without context bloat, and interactive take timeline.
+  - [x] **State Tracking (Scene Memory)**: Cross-take chronological continuity memory, sequential drift tracking, compact verdict synthesis without context bloat, and interactive take timeline.
+  - [x] **Function Calling & Tool Use (Autonomous Agent Copilot)**: Native Automatic Function Calling (AFC) with `gemini-3.8-flash`, autonomous multi-step execution across 7 production tools (SQLite query, script checking, take diff comparison, Kafka/SSE radio alerts, PDF generation), and interactive Tool Execution Traces.
+  - [ ] **Agent Engine & Managed Hosting**: Managed hosting and deployment on Vertex AI Agent Engine.
 
 - [ ] **🚀 Phase 5: Deployment & Safety** 
 

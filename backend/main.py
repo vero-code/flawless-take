@@ -21,8 +21,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
-from google.genai.interactions import DocumentContent, ImageContent, TextContent, TextResponseFormat
+from pydantic import BaseModel
 
+import agent_service
+import agent_tools
 import database
 import storage
 
@@ -126,6 +128,7 @@ def _publish_event(payload: dict) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await database.init_db()
+    agent_tools.register_event_publisher(_publish_event)
     yield
 
 
@@ -900,6 +903,35 @@ async def export_history_pdf(record_id: int):
             "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Autonomous Agent Copilot (AFC Tool Calling)
+# ---------------------------------------------------------------------------
+class AgentQueryRequest(BaseModel):
+    prompt: str
+    scene: str = ""
+    character: str = ""
+    script_context: str = ""
+
+
+@app.post("/api/agent/query")
+async def agent_query_endpoint(req: AgentQueryRequest) -> dict:
+    """Run autonomous agent query with tool calling."""
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+    try:
+        result = await agent_service.run_agent_query(
+            prompt=req.prompt,
+            scene=req.scene,
+            character=req.character,
+            script_context=req.script_context,
+        )
+        return result
+    except Exception as exc:
+        logger.exception("Agent query failed")
+        raise HTTPException(status_code=500, detail=f"Agent execution error: {exc}") from exc
+
 
 
 

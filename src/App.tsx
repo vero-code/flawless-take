@@ -254,6 +254,9 @@ type AlertEvent = {
   match_score?: string
   script_grounded?: boolean
   timestamp?: number
+  department?: string
+  message?: string
+  source?: string
 }
 
 type Toast = AlertEvent & { id: number }
@@ -440,7 +443,11 @@ function AlertFeed() {
     es.onmessage = (e) => {
       try {
         const payload: AlertEvent = JSON.parse(e.data)
-        if (payload.event !== 'continuity_check' && payload.event !== 'takes_comparison') return
+        if (
+          payload.event !== 'continuity_check' &&
+          payload.event !== 'takes_comparison' &&
+          payload.event !== 'autonomous_agent_alert'
+        ) return
         const id = ++counterRef.current
         setToasts(prev => [...prev.slice(-4), { ...payload, id }])
         // auto-dismiss after 8 s
@@ -464,17 +471,23 @@ function AlertFeed() {
       {toasts.map(t => (
         <div
           key={t.id}
-          className={`alert-toast ${RISK_TOAST[t.event === 'takes_comparison' ? (t.risk_level ?? '') : (t.risk_level ?? '')] ?? ''}`}
+          className={`alert-toast ${RISK_TOAST[t.risk_level ?? ''] ?? ''}`}
           onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
         >
           <span className="alert-tag">
-            {t.event === 'takes_comparison' ? '⇄ Compare' : '● Check'}
+            {t.event === 'autonomous_agent_alert'
+              ? '🤖 Agent Alert'
+              : t.event === 'takes_comparison'
+              ? '⇄ Compare'
+              : '● Check'}
           </span>
           <span className="alert-scene">
-            {t.character} · {t.scene}
+            {t.department ? `[${t.department.toUpperCase()}] ` : ''}
+            {t.character ? `${t.character} · ` : ''}{t.scene}
             {t.event === 'takes_comparison'
               ? ` · Take ${t.take_ref} vs ${t.take_current}`
-              : ` · Take ${t.take}`}
+              : t.take ? ` · Take ${t.take}` : ''}
+            {t.message ? ` — ${t.message}` : ''}
           </span>
           <span className="alert-meta">
             {t.risk_level && <span className={`alert-risk risk--${t.risk_level?.toLowerCase()}`}>{t.risk_level}</span>}
@@ -717,9 +730,325 @@ function SceneMemoryTimeline({
 }
 
 // ---------------------------------------------------------------------------
+// Phase 4 Step 2: Agent Copilot Types & Components
+// ---------------------------------------------------------------------------
+const AGENT_QUERY_URL = `${API_BASE}/api/agent/query`
+
+type ToolTraceItem = {
+  tool: string
+  args: Record<string, any>
+  result: any
+}
+
+type AgentChatMessage = {
+  id: string
+  role: 'user' | 'agent'
+  text: string
+  toolCalls?: ToolTraceItem[]
+  actionsTaken?: string[]
+  timestamp: number
+}
+
+function ToolTraceCard({ trace }: { trace: ToolTraceItem }) {
+  const [open, setOpen] = useState(false)
+
+  const toolIcons: Record<string, string> = {
+    get_scene_continuity_state: '🎬',
+    query_take_records: '🔍',
+    get_take_full_report: '📋',
+    check_script_continuity: '📜',
+    compare_recorded_takes: '⚖️',
+    emit_crew_alert: '🚨',
+    export_continuity_pdf: '📄',
+  }
+  const icon = toolIcons[trace.tool] || '⚙️'
+
+  const isPdf = trace.tool === 'export_continuity_pdf'
+  const isAlert = trace.tool === 'emit_crew_alert'
+  const isState = trace.tool === 'get_scene_continuity_state'
+
+  return (
+    <div className="tool-trace-card">
+      <div className="tool-trace-header" onClick={() => setOpen(prev => !prev)}>
+        <span className="tool-trace-badge">
+          <span className="tool-trace-icon">{icon}</span>
+          <span className="tool-trace-name">{trace.tool}</span>
+        </span>
+        <div className="tool-trace-meta">
+          {isAlert && <span className="trace-status-pill trace-status-pill--alert">BROADCASTED</span>}
+          {isPdf && <span className="trace-status-pill trace-status-pill--pdf">PDF READY</span>}
+          {isState && trace.result?.drift_status && (
+            <span className={`trace-status-pill trace-status-pill--${String(trace.result.drift_status).toLowerCase()}`}>
+              {trace.result.drift_status}
+            </span>
+          )}
+          <span className="tool-trace-caret">{open ? '▴' : '▾'}</span>
+        </div>
+      </div>
+
+      {/* Direct Action Bars */}
+      {isPdf && trace.result?.record_id && (
+        <div className="tool-trace-action-bar">
+          <button
+            type="button"
+            className="agent-download-pdf-btn"
+            onClick={() => downloadPdf(Number(trace.result.record_id), trace.result.filename)}
+          >
+            📄 Download Continuity PDF #{trace.result.record_id}
+          </button>
+        </div>
+      )}
+
+      {isAlert && trace.result?.broadcast_via_sse && (
+        <div className="tool-trace-alert-broadcast">
+          <span className="tool-trace-radio-icon">📡</span>
+          <span>
+            Alert delivered to Kafka topic &amp; <strong>#{trace.args?.department || 'crew'}</strong> radio
+          </span>
+        </div>
+      )}
+
+      {open && (
+        <div className="tool-trace-body">
+          <div className="tool-trace-section">
+            <span className="tool-trace-section-title">Arguments:</span>
+            <pre className="tool-trace-code">{JSON.stringify(trace.args, null, 2)}</pre>
+          </div>
+          <div className="tool-trace-section">
+            <span className="tool-trace-section-title">Output Result:</span>
+            <pre className="tool-trace-code">{JSON.stringify(trace.result, null, 2)}</pre>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgentCopilotView({
+  scene,
+  character,
+  scriptContext,
+  onSceneChange,
+  onCharacterChange,
+}: {
+  scene: string
+  character: string
+  scriptContext: string
+  onSceneChange: (s: string) => void
+  onCharacterChange: (c: string) => void
+}) {
+  const [messages, setMessages] = useState<AgentChatMessage[]>([
+    {
+      id: 'welcome',
+      role: 'agent',
+      text: '👋 **Agent Copilot online!** I am your autonomous on-set AI continuity supervisor powered by Google GenAI. I can autonomously invoke tools: query the SQLite takes database, verify script guidelines, compare takes, generate official Hollywood Continuity PDFs, and dispatch real-time radio alerts to Confluent Kafka / SSE.\n\nAsk a question or select a quick action below.',
+      timestamp: Date.now(),
+    },
+  ])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
+
+  async function handleSend(promptText?: string) {
+    const textToSend = (promptText ?? input).trim()
+    if (!textToSend || loading) return
+
+    setInput('')
+    setErrorMsg(null)
+
+    const userMsg: AgentChatMessage = {
+      id: 'user-' + Date.now(),
+      role: 'user',
+      text: textToSend,
+      timestamp: Date.now(),
+    }
+    setMessages(prev => [...prev, userMsg])
+    setLoading(true)
+
+    try {
+      const res = await fetch(AGENT_QUERY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: textToSend,
+          scene: scene.trim(),
+          character: character.trim(),
+          script_context: scriptContext.trim(),
+        }),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(`Server returned ${res.status}: ${errText}`)
+      }
+
+      const data = await res.json()
+      const agentMsg: AgentChatMessage = {
+        id: 'agent-' + Date.now(),
+        role: 'agent',
+        text: data.response || 'Tools executed successfully.',
+        toolCalls: data.tool_calls || [],
+        actionsTaken: data.actions_taken || [],
+        timestamp: Date.now(),
+      }
+      setMessages(prev => [...prev, agentMsg])
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const promptChips = [
+    {
+      label: '🔍 Check Scene Continuity',
+      text: `Check current continuity status and take history for scene "${scene || 'EXT. ROOFTOP - NIGHT'}" and character "${character || 'Alice'}".`,
+    },
+    {
+      label: '🚨 Alert Makeup Crew',
+      text: `Dispatch an alert to the makeup department regarding continuity discrepancies in scene "${scene || 'EXT. ROOFTOP - NIGHT'}" for character "${character || 'Alice'}".`,
+    },
+    {
+      label: '📄 Generate Continuity PDF',
+      text: `Generate an official Continuity Log PDF for the latest take in scene "${scene || 'EXT. ROOFTOP - NIGHT'}".`,
+    },
+    {
+      label: '⚖️ Compare Latest Takes',
+      text: `Compare Take 1 and Take 2 in scene "${scene || 'EXT. ROOFTOP - NIGHT'}" for ${character || 'Alice'} and highlight continuity risks.`,
+    },
+  ]
+
+  return (
+    <div className="agent-copilot-container">
+      {/* Context bar */}
+      <div className="agent-context-strip">
+        <div className="agent-context-field">
+          <label htmlFor="agent-scene">Active Scene:</label>
+          <input
+            id="agent-scene"
+            type="text"
+            placeholder="e.g. EXT. ROOFTOP - NIGHT"
+            value={scene}
+            onChange={e => onSceneChange(e.target.value)}
+          />
+        </div>
+        <div className="agent-context-field">
+          <label htmlFor="agent-char">Character:</label>
+          <input
+            id="agent-char"
+            type="text"
+            placeholder="e.g. Alice"
+            value={character}
+            onChange={e => onCharacterChange(e.target.value)}
+          />
+        </div>
+        <div className="agent-context-badge">
+          {scriptContext ? '📜 Script Grounded' : '📄 No Script PDF'}
+        </div>
+      </div>
+
+      {/* Suggested prompts chips */}
+      <div className="agent-chips-wrap">
+        <span className="agent-chips-label">Quick Actions:</span>
+        <div className="agent-chips-list">
+          {promptChips.map((chip, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="agent-chip-btn"
+              disabled={loading}
+              onClick={() => handleSend(chip.text)}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Chat Messages */}
+      <div className="agent-chat-window">
+        {messages.map(m => (
+          <div
+            key={m.id}
+            className={`agent-bubble-row ${m.role === 'user' ? 'bubble-row--user' : 'bubble-row--agent'}`}
+          >
+            <div className={`agent-bubble ${m.role === 'user' ? 'agent-bubble--user' : 'agent-bubble--agent'}`}>
+              <div className="agent-bubble-sender">
+                {m.role === 'user' ? '👤 Supervisor' : '🤖 Agent Copilot'}
+              </div>
+
+              <Markdown text={m.text} />
+
+              {/* Tool Execution Trace */}
+              {m.toolCalls && m.toolCalls.length > 0 && (
+                <div className="agent-tools-trace-box">
+                  <div className="agent-tools-trace-heading">
+                    <span className="trace-heading-icon">🛠️</span>
+                    <span>Autonomous Tool Execution ({m.toolCalls.length})</span>
+                  </div>
+                  <div className="agent-tools-trace-list">
+                    {m.toolCalls.map((tc, i) => (
+                      <ToolTraceCard key={i} trace={tc} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {loading && (
+          <div className="agent-bubble-row bubble-row--agent">
+            <div className="agent-bubble agent-bubble--agent agent-bubble--thinking">
+              <div className="agent-thinking-spinner"></div>
+              <span>Agent Copilot is analyzing context, querying database, and invoking tools…</span>
+            </div>
+          </div>
+        )}
+
+        <div ref={chatEndRef} />
+      </div>
+
+      {errorMsg && (
+        <div className="agent-error-banner">
+          <span>⚠️ {errorMsg}</span>
+          <button type="button" onClick={() => setErrorMsg(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Input area */}
+      <form
+        className="agent-input-form"
+        onSubmit={e => {
+          e.preventDefault()
+          void handleSend()
+        }}
+      >
+        <input
+          type="text"
+          className="agent-input-field"
+          placeholder="Ask the agent (e.g. 'Check Alice\'s takes and alert the makeup department')..."
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          disabled={loading}
+        />
+        <button type="submit" className="agent-send-btn" disabled={loading || !input.trim()}>
+          {loading ? '…' : 'Send ⮞'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main app
 // ---------------------------------------------------------------------------
-type Page = 'check' | 'history'
+type Page = 'check' | 'agent' | 'history'
 
 function App() {
   const [page, setPage] = useState<Page>('check')
@@ -831,6 +1160,11 @@ function App() {
             Check
           </button>
           <button type="button"
+            className={`mode-btn ${page === 'agent' ? 'mode-btn--active' : ''}`}
+            onClick={() => setPage('agent')}>
+            🤖 Agent Copilot
+          </button>
+          <button type="button"
             className={`mode-btn ${page === 'history' ? 'mode-btn--active' : ''}`}
             onClick={() => setPage('history')}>
             History
@@ -839,6 +1173,17 @@ function App() {
 
         {/* History page */}
         {page === 'history' && <HistoryTab />}
+
+        {/* Agent Copilot page */}
+        {page === 'agent' && (
+          <AgentCopilotView
+            scene={scene}
+            character={character}
+            scriptContext={scriptContext}
+            onSceneChange={setScene}
+            onCharacterChange={setCharacter}
+          />
+        )}
 
         {/* Check page */}
         {page === 'check' && <>
