@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from confluent_kafka import Consumer, Producer
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -82,12 +82,29 @@ def _get_producer() -> Producer | None:
     return _producer
 
 
+_alert_subscribers: set[asyncio.Queue[str]] = set()
+
+
+def _broadcast_event(payload: dict) -> None:
+    """Broadcast an alert payload to all connected SSE clients."""
+    data_str = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    dead = set()
+    for q in _alert_subscribers:
+        try:
+            q.put_nowait(data_str)
+        except Exception:
+            dead.add(q)
+    _alert_subscribers.difference_update(dead)
+
+
 def _publish_event(payload: dict) -> None:
-    """Serialize payload to JSON and produce to Kafka. Errors are logged, never raised."""
+    """Serialize payload to JSON, broadcast locally, and produce to Kafka."""
+    _broadcast_event(payload)
     producer = _get_producer()
     if producer is None:
         logger.debug("Kafka producer not configured — skipping event publish.")
         return
+
 
     def _on_delivery(err, msg):
         if err:
@@ -163,52 +180,40 @@ def _make_consumer() -> Consumer | None:
     return c
 
 
-async def _sse_generator():
-    """Yield SSE-formatted strings by polling Kafka in a thread pool."""
-    loop = asyncio.get_event_loop()
-    consumer = await loop.run_in_executor(None, _make_consumer)
-
-    if consumer is None:
-        yield "data: {\"error\": \"Kafka not configured\"}\n\n"
-        return
-
-    # send a heartbeat immediately so the browser connection opens
+async def _sse_generator(request: Request):
+    """Yield SSE-formatted strings without blocking threads or event loop."""
+    q: asyncio.Queue[str] = asyncio.Queue()
+    _alert_subscribers.add(q)
     yield ": heartbeat\n\n"
-
     try:
         while True:
-            msg = await loop.run_in_executor(None, lambda: consumer.poll(1.0))
-            if msg is None:
-                # no message — send keep-alive comment so the connection stays open
-                yield ": keep-alive\n\n"
-                continue
-            if msg.error():
-                logger.error("Kafka consumer error: %s", msg.error())
-                yield f"data: {{\"error\": \"{msg.error()}\"}}\n\n"
-                continue
+            if await request.is_disconnected():
+                break
             try:
-                payload = json.loads(msg.value().decode())
-            except Exception:
-                continue
-            yield f"data: {json.dumps(payload)}\n\n"
+                data = await asyncio.wait_for(q.get(), timeout=10.0)
+                yield data
+            except asyncio.TimeoutError:
+                yield ": keep-alive\n\n"
     finally:
-        await loop.run_in_executor(None, consumer.close)
+        _alert_subscribers.discard(q)
 
 
 @app.get("/api/alerts")
-async def alerts():
+async def alerts(request: Request):
     """
     Server-Sent Events stream. Connect with EventSource('/api/alerts').
-    Each event is a JSON-encoded Kafka message from flawless-take-events.
+    Broadcasts real-time events to connected browser tabs without blocking.
     """
     return StreamingResponse(
-        _sse_generator(),
+        _sse_generator(request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",   # disable nginx buffering if proxied
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
         },
     )
+
 
 
 # ---------------------------------------------------------------------------
@@ -597,4 +602,37 @@ async def delete_history_record(record_id: int) -> dict[str, str]:
     if not deleted:
         raise HTTPException(status_code=404, detail="Record not found")
     return {"status": "deleted", "id": str(record_id)}
+
+
+@app.get("/api/history/{record_id}/pdf")
+async def export_history_pdf(record_id: int):
+    """Generate and return an official Continuity Log PDF for a record."""
+    record = await database.get_record(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    try:
+        import pdf_export
+        pdf_bytes = pdf_export.generate_continuity_pdf(record)
+    except Exception as exc:
+        logger.exception("Failed to generate PDF")
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}") from exc
+
+    from urllib.parse import quote
+    from fastapi.responses import Response
+
+    scene_part = str(record.get("scene", "scene")).strip().replace(" ", "_")
+    take_part = record.get("take") or f"{record.get('take_ref')}_vs_{record.get('take_current')}" or "log"
+    raw_name = f"continuity_{scene_part}_take_{take_part}.pdf"
+    encoded_name = quote(raw_name)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
+        },
+    )
+
+
 

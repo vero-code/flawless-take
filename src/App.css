@@ -175,6 +175,37 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
+.pdf-export-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.pdf-export-btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pdf-export-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(110, 86, 207, 0.25);
+}
+
+
 
 /* ── Alert feed (SSE toasts) ─────────────────────────── */
 .alert-feed {

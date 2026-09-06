@@ -14,6 +14,27 @@ function getMediaUrl(url?: string | null): string | undefined {
   return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`
 }
 
+async function downloadPdf(recordId: number, filename?: string) {
+  try {
+    const res = await fetch(`${API_BASE}/api/history/${recordId}/pdf`)
+    if (!res.ok) {
+      const errText = await res.text()
+      throw new Error(`Server returned ${res.status}: ${errText}`)
+    }
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename || `continuity_log_${recordId}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    alert(`Failed to export PDF: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -389,6 +410,16 @@ function HistoryTab() {
                 )}
                 {/* Report */}
                 <Markdown text={r.report} />
+
+                <div className="pdf-export-row">
+                  <button
+                    type="button"
+                    className="pdf-export-btn"
+                    onClick={() => downloadPdf(r.id, `continuity_${r.scene}_take_${r.take || `${r.take_ref}_vs_${r.take_current}`}.pdf`)}
+                  >
+                    📄 Export Continuity Log (PDF)
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -710,6 +741,17 @@ function App() {
             <p className="result-meta-line">
               {result.filename} · {(result.size_bytes / 1024).toFixed(1)} KB
             </p>
+            {result.id && (
+              <div className="pdf-export-row">
+                <button
+                  type="button"
+                  className="pdf-export-btn"
+                  onClick={() => downloadPdf(result.id!, `continuity_${result.scene}_take_${result.take}.pdf`)}
+                >
+                  📄 Export Continuity Log (PDF)
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -736,6 +778,17 @@ function App() {
             <p className="result-meta-line">
               REF: {compareResult.ref_filename} · CUR: {compareResult.cur_filename}
             </p>
+            {compareResult.id && (
+              <div className="pdf-export-row">
+                <button
+                  type="button"
+                  className="pdf-export-btn"
+                  onClick={() => downloadPdf(compareResult.id!, `continuity_${compareResult.scene}_take_${compareResult.take_ref}_vs_${compareResult.take_current}.pdf`)}
+                >
+                  📄 Export Continuity Log (PDF)
+                </button>
+              </div>
+            )}
           </div>
         )}
 
