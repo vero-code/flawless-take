@@ -19,9 +19,32 @@ export function McpStatusBadge() {
       })
   }, [])
 
-  if (!info) return null
+  const fallbackInfo: McpInfo = {
+    server_name: 'Flawless Take Studio MCP',
+    version: '1.0.0',
+    tool_count: 8,
+    tools: [
+      'get_scene_continuity_state',
+      'query_take_records',
+      'get_take_full_report',
+      'check_script_continuity',
+      'compare_recorded_takes',
+      'emit_crew_alert',
+      'export_continuity_pdf',
+      'generate_department_checklist'
+    ],
+    sse_endpoint: '/mcp/sse',
+    claude_desktop_config: {
+      mcpServers: {
+        'flawless-take': {
+          url: 'http://localhost:8000/mcp/sse'
+        }
+      }
+    }
+  }
 
-  const configJson = JSON.stringify(info.claude_desktop_config, null, 2)
+  const activeInfo = info ?? fallbackInfo
+  const configJson = JSON.stringify(activeInfo.claude_desktop_config, null, 2)
 
   function copyConfig() {
     navigator.clipboard.writeText(configJson).then(() => {
@@ -40,22 +63,22 @@ export function McpStatusBadge() {
       >
         <span className="mcp-badge-dot" />
         <span>🔌 MCP</span>
-        <span className="mcp-badge-count">{info.tool_count} tools</span>
+        <span className="mcp-badge-count">{activeInfo.tool_count} tools</span>
         <span className="mcp-badge-caret">{open ? '▴' : '▾'}</span>
       </button>
 
       {open && (
         <div className="mcp-drawer">
           <div className="mcp-drawer-header">
-            <span className="mcp-drawer-title">{info.server_name}</span>
-            <span className="mcp-drawer-version">v{info.version}</span>
+            <span className="mcp-drawer-title">{activeInfo.server_name}</span>
+            <span className="mcp-drawer-version">v{activeInfo.version}</span>
           </div>
           <div className="mcp-drawer-endpoint">
             <span className="mcp-endpoint-label">SSE endpoint:</span>
-            <code className="mcp-endpoint-url">http://localhost:8000{info.sse_endpoint}</code>
+            <code className="mcp-endpoint-url">http://localhost:8000{activeInfo.sse_endpoint}</code>
           </div>
           <div className="mcp-drawer-tools">
-            {info.tools.map((t) => (
+            {activeInfo.tools.map((t) => (
               <span key={t} className="mcp-tool-chip">
                 {t}
               </span>

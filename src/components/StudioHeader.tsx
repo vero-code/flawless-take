@@ -42,9 +42,17 @@ export function StudioHeader() {
         </div>
 
         <div className="studio-telemetry">
-          <div className="studio-telemetry-item studio-telemetry-item--ai">
+          <div className="studio-telemetry-item studio-telemetry-item--ai" title="Google GenAI / Vertex AI Engine">
             <span className="studio-dot studio-dot--ai"></span>
             <span>Gemini 3.8 Flash</span>
+          </div>
+          <div className="studio-telemetry-item studio-telemetry-item--confluent" title="Confluent Kafka Event Bus — Real-time Crew Alert Broadcasts">
+            <span className="studio-dot studio-dot--confluent"></span>
+            <span>Confluent Kafka</span>
+          </div>
+          <div className="studio-telemetry-item studio-telemetry-item--ibm" title="IBM Partner Track — Bob Architecture & Data Scaffolding">
+            <span className="studio-dot studio-dot--ibm"></span>
+            <span>IBM Bob</span>
           </div>
           <McpStatusBadge />
         </div>
