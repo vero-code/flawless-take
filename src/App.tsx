@@ -6,7 +6,7 @@ import type { CheckResult, CompareResult, Mode, Status, Page } from './types'
 import {
   AlertFeed,
   ImageDrop,
-  McpStatusBadge,
+  StudioHeader,
   ScriptPanel,
   HistoryTab,
   SceneMemoryTimeline,
@@ -17,12 +17,12 @@ import {
 
 function App() {
   const [page, setPage] = useState<Page>('check')
-  const [mode, setMode] = useState<Mode>('single')
-  const [scene, setScene] = useState('')
-  const [take, setTake] = useState('')
-  const [takeRef, setTakeRef] = useState('')
-  const [takeCurrent, setTakeCurrent] = useState('')
-  const [character, setCharacter] = useState('')
+  const [mode, setMode] = useState<Mode>('compare')
+  const [scene, setScene] = useState('Scene 14A')
+  const [take, setTake] = useState('2')
+  const [takeRef, setTakeRef] = useState('1')
+  const [takeCurrent, setTakeCurrent] = useState('2')
+  const [character, setCharacter] = useState('Detective Miller')
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [refFile, setRefFile] = useState<File | null>(null)
@@ -113,116 +113,255 @@ function App() {
   const submitDisabled = status === 'loading' || (isSingle ? !file : !refFile || !curFile)
 
   return (
-    <>
+    <div className="studio-app">
       <AlertFeed />
-      <section id="center">
-        <div>
-          <h1>Flawless Take</h1>
-          <p className="subtitle">Makeup continuity check — tablet view</p>
-          <McpStatusBadge />
-        </div>
+      <StudioHeader />
 
-        {/* Page navigation */}
-        <div className="mode-toggle">
-          <button type="button" className={`mode-btn ${page === 'check' ? 'mode-btn--active' : ''}`} onClick={() => setPage('check')}>
-            Check
-          </button>
-          <button type="button" className={`mode-btn ${page === 'agent' ? 'mode-btn--active' : ''}`} onClick={() => setPage('agent')}>
-            🤖 Agent Copilot
-          </button>
-          <button type="button" id="voice-mode-tab" className={`mode-btn ${page === 'voice' ? 'mode-btn--active' : ''}`} onClick={() => setPage('voice')}>
-            🎤 Voice Mode
-          </button>
-          <button type="button" className={`mode-btn ${page === 'history' ? 'mode-btn--active' : ''}`} onClick={() => setPage('history')}>
-            History
-          </button>
-        </div>
+      {/* Main Studio Navigation Switcher */}
+      <nav className="studio-nav">
+        <button
+          type="button"
+          className={`studio-nav-btn ${page === 'check' ? 'studio-nav-btn--active' : ''}`}
+          onClick={() => setPage('check')}
+        >
+          <span className="studio-nav-icon">🎬</span>
+          <span>Take Inspector</span>
+        </button>
 
+        <button
+          type="button"
+          className={`studio-nav-btn ${page === 'agent' ? 'studio-nav-btn--active' : ''}`}
+          onClick={() => setPage('agent')}
+        >
+          <span className="studio-nav-icon">🤖</span>
+          <span>Agent Copilot</span>
+        </button>
+
+        <button
+          type="button"
+          id="voice-mode-tab"
+          className={`studio-nav-btn ${page === 'voice' ? 'studio-nav-btn--active' : ''}`}
+          onClick={() => setPage('voice')}
+        >
+          <span className="studio-nav-icon">🎙️</span>
+          <span>Voice Assistant</span>
+        </button>
+
+        <button
+          type="button"
+          className={`studio-nav-btn ${page === 'history' ? 'studio-nav-btn--active' : ''}`}
+          onClick={() => setPage('history')}
+        >
+          <span className="studio-nav-icon">📋</span>
+          <span>Continuity Logs</span>
+        </button>
+      </nav>
+
+      {/* Page Content */}
+      <main className="studio-main">
         {page === 'history' && <HistoryTab />}
 
         {page === 'agent' && (
           <AgentCopilotView
-            scene={scene} character={character} scriptContext={scriptContext}
-            onSceneChange={setScene} onCharacterChange={setCharacter}
+            scene={scene}
+            character={character}
+            scriptContext={scriptContext}
+            onSceneChange={setScene}
+            onCharacterChange={setCharacter}
           />
         )}
 
         {page === 'voice' && (
           <VoiceModeView
-            scene={scene} character={character}
-            onSceneChange={setScene} onCharacterChange={setCharacter}
+            scene={scene}
+            character={character}
+            onSceneChange={setScene}
+            onCharacterChange={setCharacter}
           />
         )}
 
         {page === 'check' && (
-          <>
-            <div className="mode-toggle">
-              <button type="button" className={`mode-btn ${isSingle ? 'mode-btn--active' : ''}`} onClick={() => switchMode('single')}>
-                Single check
-              </button>
-              <button type="button" className={`mode-btn ${!isSingle ? 'mode-btn--active' : ''}`} onClick={() => switchMode('compare')}>
-                Compare takes
-              </button>
-            </div>
+          <div className="studio-cockpit">
+            {/* Left Column: Slate & Parameter Controls */}
+            <aside className="cockpit-sidebar">
+              <div className="slate-card">
+                <div className="slate-header">
+                  <div className="slate-title-box">
+                    <span className="slate-clapper">🎬</span>
+                    <span className="slate-title">PRODUCTION SLATE</span>
+                  </div>
+                </div>
 
-            <form className="check-form" onSubmit={isSingle ? handleSingleSubmit : handleCompareSubmit}>
+                <div className="slate-fields">
+                  <div className="slate-field">
+                    <label htmlFor="scene">SCENE</label>
+                    <input
+                      id="scene"
+                      type="text"
+                      placeholder="e.g. INT. BEDROOM – DAY"
+                      value={scene}
+                      onChange={e => setScene(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="slate-field">
+                    <label htmlFor="character">CHARACTER</label>
+                    <input
+                      id="character"
+                      type="text"
+                      placeholder="e.g. Elena"
+                      value={character}
+                      onChange={e => setCharacter(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
               <ScriptPanel onContext={setScriptContext} />
 
-              <div className="form-row">
-                <label htmlFor="scene">Scene</label>
-                <input id="scene" type="text" placeholder="e.g. INT. BEDROOM – DAY" value={scene} onChange={e => setScene(e.target.value)} required />
-              </div>
-
-              <div className="form-row">
-                <label htmlFor="character">Character</label>
-                <input id="character" type="text" placeholder="e.g. Elena" value={character} onChange={e => setCharacter(e.target.value)} required />
-              </div>
-
               <SceneMemoryTimeline
-                scene={scene} character={character} refreshTrigger={refreshCounter}
+                scene={scene}
+                character={character}
+                refreshTrigger={refreshCounter}
                 onSelectReferenceTake={(t) => { setMode('compare'); setTakeRef(t) }}
               />
+            </aside>
 
-              {isSingle ? (
-                <>
-                  <div className="form-row">
-                    <label htmlFor="take">Take #</label>
-                    <input id="take" type="text" placeholder="e.g. 3" value={take} onChange={e => setTake(e.target.value)} required />
-                  </div>
-                  <ImageDrop id="photo" label="Photo" preview={preview} inputRef={fileInputRef} onChange={makeFileHandler(setFile, setPreview)} />
-                </>
-              ) : (
-                <>
-                  <div className="form-row-pair">
-                    <div className="form-row">
-                      <label htmlFor="take-ref">Reference take #</label>
-                      <input id="take-ref" type="text" placeholder="e.g. 2" value={takeRef} onChange={e => setTakeRef(e.target.value)} required />
+            {/* Right Column: Viewfinder Deck & Inspection */}
+            <section className="cockpit-deck">
+              {/* Inspection Mode Switcher */}
+              <div className="deck-mode-bar">
+                <div className="deck-mode-group">
+                  <button
+                    type="button"
+                    className={`deck-mode-btn ${!isSingle ? 'deck-mode-btn--active' : ''}`}
+                    onClick={() => switchMode('compare')}
+                  >
+                    Dual-Take Differential Compare
+                  </button>
+                  <button
+                    type="button"
+                    className={`deck-mode-btn ${isSingle ? 'deck-mode-btn--active' : ''}`}
+                    onClick={() => switchMode('single')}
+                  >
+                    Single Take Verification
+                  </button>
+                </div>
+              </div>
+
+              <form
+                className="deck-form"
+                onSubmit={isSingle ? handleSingleSubmit : handleCompareSubmit}
+              >
+                {isSingle ? (
+                  <div className="deck-viewfinder-grid deck-viewfinder-grid--single">
+                    <div className="deck-take-badge-row">
+                      <div className="slate-take-input">
+                        <label htmlFor="take">TAKE #</label>
+                        <input
+                          id="take"
+                          type="text"
+                          placeholder="e.g. 3"
+                          value={take}
+                          onChange={e => setTake(e.target.value)}
+                          required
+                        />
+                      </div>
                     </div>
-                    <div className="form-row">
-                      <label htmlFor="take-cur">Current take #</label>
-                      <input id="take-cur" type="text" placeholder="e.g. 3" value={takeCurrent} onChange={e => setTakeCurrent(e.target.value)} required />
+                    <ImageDrop
+                      id="photo"
+                      label="CAMERA A · LIVE TAKE"
+                      preview={preview}
+                      inputRef={fileInputRef}
+                      onChange={makeFileHandler(setFile, setPreview)}
+                      onClear={() => { setFile(null); setPreview(null) }}
+                    />
+                  </div>
+                ) : (
+                  <div className="deck-viewfinder-grid deck-viewfinder-grid--compare">
+                    <div className="viewfinder-col">
+                      <div className="deck-take-badge-row">
+                        <div className="slate-take-input">
+                          <label htmlFor="take-ref">REFERENCE TAKE #</label>
+                          <input
+                            id="take-ref"
+                            type="text"
+                            placeholder="e.g. 1"
+                            value={takeRef}
+                            onChange={e => setTakeRef(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+                      <ImageDrop
+                        id="ref-photo"
+                        label="APPROVED BASELINE"
+                        preview={refPreview}
+                        inputRef={refInputRef}
+                        onChange={makeFileHandler(setRefFile, setRefPreview)}
+                        onClear={() => { setRefFile(null); setRefPreview(null) }}
+                      />
+                    </div>
+
+                    <div className="viewfinder-col">
+                      <div className="deck-take-badge-row">
+                        <div className="slate-take-input">
+                          <label htmlFor="take-cur">CURRENT TAKE #</label>
+                          <input
+                            id="take-cur"
+                            type="text"
+                            placeholder="e.g. 2"
+                            value={takeCurrent}
+                            onChange={e => setTakeCurrent(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+                      <ImageDrop
+                        id="cur-photo"
+                        label="CURRENT TAKE"
+                        preview={curPreview}
+                        inputRef={curInputRef}
+                        onChange={makeFileHandler(setCurFile, setCurPreview)}
+                        onClear={() => { setCurFile(null); setCurPreview(null) }}
+                      />
                     </div>
                   </div>
-                  <div className="form-row-pair">
-                    <ImageDrop id="ref-photo" label="Reference photo" preview={refPreview} inputRef={refInputRef} onChange={makeFileHandler(setRefFile, setRefPreview)} />
-                    <ImageDrop id="cur-photo" label="Current photo" preview={curPreview} inputRef={curInputRef} onChange={makeFileHandler(setCurFile, setCurPreview)} />
-                  </div>
-                </>
-              )}
+                )}
 
-              <button type="submit" className="submit-btn" disabled={submitDisabled}>
-                {status === 'loading' ? 'Analysing…' : isSingle ? 'Check Take' : 'Compare Takes'}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  className="studio-run-btn"
+                  disabled={submitDisabled}
+                >
+                  {status === 'loading' ? (
+                    <span className="studio-run-loading">
+                      <span className="studio-spinner"></span>
+                      GEMINI 3.8 FLASH ANALYSING MULTIMODAL FRAMES...
+                    </span>
+                  ) : (
+                    <span>
+                      {isSingle
+                        ? '⚡ RUN SINGLE-TAKE CONTINUITY INSPECTION'
+                        : '⚡ RUN DUAL-TAKE DIFFERENTIAL ANALYSIS'}
+                    </span>
+                  )}
+                </button>
+              </form>
 
-            <TakeResultBox status={status} result={result} compareResult={compareResult} errorMsg={errorMsg} />
-          </>
+              <TakeResultBox
+                status={status}
+                result={result}
+                compareResult={compareResult}
+                errorMsg={errorMsg}
+              />
+            </section>
+          </div>
         )}
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      </main>
+    </div>
   )
 }
 
