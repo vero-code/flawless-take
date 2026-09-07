@@ -258,7 +258,7 @@ async def agent_builder_webhook(request: Request) -> dict:
         body = await request.json()
     except Exception:
         body = {}
-    return environments.handle_agent_builder_webhook(body)
+    return await environments.handle_agent_builder_webhook_async(body)
 
 
 @app.get("/api/agent-builder/spec")
