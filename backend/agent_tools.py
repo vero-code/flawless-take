@@ -13,6 +13,7 @@ Defines callable tools with Google GenAI function calling schemas for:
 import json
 import logging
 import os
+import re
 import time
 from typing import Callable
 
@@ -128,7 +129,7 @@ async def get_take_full_report(record_id: int) -> dict:
 
 async def check_script_continuity(scene_heading: str, character: str = "") -> dict:
     """
-    Cross-reference requirements from the shooting script for a given scene and character.
+    Cross-reference requirements from the shooting script or established baseline for a given scene and character.
     Args:
         scene_heading: Scene heading or title (e.g. 'EXT. ROOFTOP - NIGHT')
         character: Character name (e.g. 'Alice')
@@ -137,22 +138,48 @@ async def check_script_continuity(scene_heading: str, character: str = "") -> di
     """
     try:
         records = await database.list_records(scene=scene_heading, character=character, limit=10)
-        grounded_recs = [r for r in records if r.get("script_grounded")]
-        if grounded_recs:
+        if not records:
             return {
                 "scene": scene_heading,
                 "character": character,
-                "grounded": True,
-                "guidelines": "Script notes established in production log: Character has SFX cheek wounds, popped dark collar, and distressed clothing.",
-                "reference_record_id": grounded_recs[0].get("id"),
+                "grounded": False,
+                "guidelines": f"No shooting script or historical takes recorded for '{character}' in '{scene_heading}'. Operating with fresh baseline.",
             }
+
+        grounded_recs = [r for r in records if r.get("script_grounded")]
+        target_rec = grounded_recs[0] if grounded_recs else records[0]
+        report_text = target_rec.get("report", "")
+
+        # Extract structured guidelines from the actual recorded report
+        guidelines_parts = []
+        makeup_match = re.search(r"(?:1\.\s*\*\*Makeup[^*]*\*\*|Makeup & Hair:?)\s*([^\n\r]+(?:\n[^\n\r#2-4]+)?)", report_text, re.IGNORECASE)
+        wardrobe_match = re.search(r"(?:2\.\s*\*\*Wardrobe[^*]*\*\*|Wardrobe:?)\s*([^\n\r]+(?:\n[^\n\r#134]+)?)", report_text, re.IGNORECASE)
+        props_match = re.search(r"(?:3\.\s*\*\*Props[^*]*\*\*|Props:?)\s*([^\n\r]+(?:\n[^\n\r#124]+)?)", report_text, re.IGNORECASE)
+
+        if makeup_match:
+            guidelines_parts.append(f"Makeup/Hair: {makeup_match.group(1).strip()[:180]}")
+        if wardrobe_match:
+            guidelines_parts.append(f"Wardrobe: {wardrobe_match.group(1).strip()[:180]}")
+        if props_match and "no differences" not in props_match.group(1).lower() and "no prop" not in props_match.group(1).lower():
+            guidelines_parts.append(f"Props: {props_match.group(1).strip()[:180]}")
+
+        if guidelines_parts:
+            guidelines_summary = "; ".join(guidelines_parts)
+        else:
+            cleaned_lines = [l.strip() for l in report_text.splitlines() if l.strip() and not l.startswith("#")]
+            guidelines_summary = " ".join(cleaned_lines[:3])[:250] if cleaned_lines else "Established visual baseline in production log."
+
+        source_label = "Shooting script grounded" if grounded_recs else "Established visual baseline"
         return {
             "scene": scene_heading,
             "character": character,
-            "grounded": False,
-            "guidelines": "No uploaded script PDF specifically attached to this scene yet. Operating with visual baseline.",
+            "grounded": bool(grounded_recs),
+            "guidelines": f"{source_label} (Take {target_rec.get('take', '1')}): {guidelines_summary}",
+            "reference_record_id": target_rec.get("id"),
+            "take_reference": target_rec.get("take"),
         }
     except Exception as exc:
+        logger.exception("check_script_continuity failed")
         return {"error": str(exc)}
 
 
