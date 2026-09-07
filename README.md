@@ -10,13 +10,30 @@ Maintaining visual continuity across takes, shooting days, and reverse-shot cove
 
 **Flawless Take** provides an on-set tablet interface for script supervisors, makeup artists, and costume departments:
 - Verifies individual takes against scene and character descriptions.
-- Performs differential visual comparisons between an approved reference take and a newly shot take.
+- Performs differential visual comparisons between reference and current takes.
 - Dispatches live continuity alerts via Confluent Kafka and SSE.
-- Generates industry-standard **Continuity Log PDFs** for daily production wrap.
+- Generates daily Continuity Log PDFs.
 
 ---
 
-## Architecture & Tech Stack
+## Tech Stack
+
+| Category | Technologies | Description |
+|---|---|---|
+| **AI & Multimodal** | Google Gemini 3.8 Flash, `google-genai` SDK | Visual differential analysis, PDF script extraction, function calling. |
+| **Agent & Protocols** | FastMCP 2.0, Google Cloud ADK | MCP server via SSE (`/mcp/sse`), Vertex AI Reasoning Engine container. |
+| **Backend** | FastAPI, Starlette, Python 3.11+, Pydantic v2 | Async REST API, modular routers, static SPA hosting. |
+| **Frontend** | React 19, TypeScript, Vite | SPA client, modular panels, `useAgentQuery` hook. |
+| **Database** | SQLite, `aiosqlite` | Asynchronous persistence for checks, comparisons, and scene state. |
+| **Storage** | Local Disk / Google Cloud Storage | Take preview frames and uploaded scripts. |
+| **Event Bus** | Confluent Kafka, SSE | Event publishing (`flawless-take-events` topic) and client SSE stream. |
+| **Reporting & Audio** | ReportLab, Web Speech API | Continuity log PDF generation, browser speech recognition and synthesis. |
+| **DevOps** | Docker, Docker Compose, Cloud Run, Secret Manager | Multi-stage container builds, secret management, multi-environment runtime. |
+| **Scaffolding** | IBM Bob | Initial project structure and API schema generation. |
+
+---
+
+## Architecture
 
 ```
 [ PDF Shooting Script ] ──> Gemini 3.8 Flash ──> Structured Continuity Context
@@ -27,19 +44,17 @@ Maintaining visual continuity across takes, shooting days, and reverse-shot cove
                                             ├── SQLite (History & Metadata)
                                             ├── Local / GCS Storage (Previews)
                                             ├── Confluent Kafka (Event Stream)
+                                            ├── FastMCP Server (/mcp/sse)
                                             └── ReportLab (PDF Log Export)
                                                          │
                                                 React 19 Frontend
                                             ├── Single / Compare Mode
+                                            ├── Agent Copilot & Voice Mode
                                             ├── Live SSE Alerts
                                             └── Daily Continuity Gallery
 ```
 
-- **Google Cloud & Gemini**: Uses `gemini-3.8-flash` via the official `google-genai` SDK for multimodal script parsing, single-take continuity evaluation, and dual-image differential analysis.
-- **IBM Bob**: Used as part of the core development process for application scaffolding, API schema design, and initial architecture.
-- **Confluent Kafka**: Event streaming backbone. The backend publishes `continuity_check` and `takes_comparison` events to the `flawless-take-events` topic for real-time crew notification.
-- **Backend**: FastAPI (Python 3.12+), `aiosqlite` for asynchronous history persistence, `reportlab` for PDF generation.
-- **Frontend**: React 19, TypeScript, Vite.
+> 📖 For detailed subsystem diagrams, modular breakdowns, and resiliency specifications, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
 
