@@ -1,6 +1,17 @@
 # Flawless Take
 
-AI-powered on-set continuity supervisor and goof detector for film and television production. Built for the **Agentic Cinema: The Blockbuster Hackathon** (IBM Partner Track).
+<p align="center">
+  <a href="https://ai.google.dev/"><img src="https://img.shields.io/badge/Google%20GenAI-Gemini%203.8%20Flash-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Gemini 3.8 Flash" /></a>
+  <a href="https://www.ibm.com/"><img src="https://img.shields.io/badge/IBM%20Partner%20Track-IBM%20Bob-052FAD?style=for-the-badge&logo=ibm&logoColor=white" alt="IBM Bob" /></a>
+  <a href="https://www.confluent.io/"><img src="https://img.shields.io/badge/Event%20Streaming-Confluent%20Kafka-000000?style=for-the-badge&logo=apachekafka&logoColor=white" alt="Confluent Kafka" /></a>
+  <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/Protocol-FastMCP%202.0%20(8%20Tools)-8A2BE2?style=for-the-badge&logo=sparkles&logoColor=white" alt="FastMCP" /></a>
+  <a href="https://cloud.google.com/vertex-ai"><img src="https://img.shields.io/badge/Agentic%20ADK-Vertex%20AI%20Reasoning%20Engine-34A853?style=for-the-badge&logo=googlecloud&logoColor=white" alt="Vertex AI Reasoning Engine" /></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.11+-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" /></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/Frontend-React%2019%20%7C%20TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" /></a>
+</p>
+
+> **AI-powered on-set continuity supervisor and visual goof detector for film and television production.**  
+> Built for the **Agentic Cinema: The Blockbuster Hackathon** (*IBM Partner Track*).
 
 ---
 
