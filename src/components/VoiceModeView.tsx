@@ -65,7 +65,6 @@ export function VoiceModeView({
     rec.onstart = () => setVoiceState('listening')
 
     rec.onresult = (e: any) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const results: any[] = Array.from(e.results)
       const t = results.map((r: any) => r[0].transcript).join('')
       setTranscript(t)
