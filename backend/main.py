@@ -18,7 +18,7 @@ from confluent_kafka import Consumer, Producer
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from pydantic import BaseModel
@@ -1047,3 +1047,22 @@ async def generate_checklist_endpoint(req: ChecklistRequest) -> dict:
     except Exception as exc:
         logger.exception("Checklist generation failed")
         raise HTTPException(status_code=500, detail=f"Checklist generation error: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Step 3: Production SPA Static Hosting (React build in dist/)
+# ---------------------------------------------------------------------------
+_dist_dir = Path(__file__).resolve().parent.parent / "dist"
+if not _dist_dir.exists():
+    _dist_dir = Path(__file__).resolve().parent / "dist"
+
+if _dist_dir.exists():
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Do not intercept API, MCP, or Uploads routes
+        if full_path.startswith("api/") or full_path.startswith("mcp") or full_path.startswith("uploads/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        target_file = _dist_dir / full_path
+        if full_path and target_file.is_file():
+            return FileResponse(str(target_file))
+        return FileResponse(str(_dist_dir / "index.html"))

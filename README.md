@@ -86,6 +86,7 @@ Aligned with the **Agentic Cinema Hackathon Guide**:
 - [ ] **🚀 Phase 5: Deployment & Safety**
   - [x] **Safety & Guardrails (Gemini Safety Settings)**: Calibrated `SafetySetting` filters for hate speech, harassment, and dangerous content tailored for film set theatrical SFX & props, with pre-flight prompt injection guardrails (`backend/safety_config.py`).
   - [x] **Studio Secrets (Google Cloud Secret Manager)**: Enterprise credential management with automatic dynamic resolution from Secret Manager and seamless offline `.env` fallback (`backend/secrets_manager.py`, `backend/setup_secrets.py`).
+  - [x] **Logic Hosting (Google Cloud Run & Docker)**: Production-ready multi-stage `Dockerfile`, `docker-compose.yml`, and `deploy_cloud_run.sh` / `.bat` automated Cloud Run serverless deployment.
 
 
 ---
@@ -294,6 +295,36 @@ The deployed Cloud Run service provides:
 - `GET /health` — Liveness and readiness probe.
 - `GET /spec` — Returns the official Google Cloud ADK agent manifest.
 - `POST /query` — Processes agent queries with multi-step tool calling.
+
+---
+
+## Production Deployment (Google Cloud Run & Docker)
+
+Flawless Take is packaged as a serverless container hosting both the compiled React frontend and the FastAPI/Gemini backend.
+
+### 1. Local Production Stack via Docker Compose
+
+Run the entire production stack locally:
+
+```bash
+docker compose up --build
+```
+Access the application at `http://localhost:8080`.
+
+### 2. Deploy to Google Cloud Run
+
+Deploy directly to Google Cloud Run with zero-downtime serverless scaling:
+
+**Linux / macOS / Cloud Shell:**
+```bash
+chmod +x deploy_cloud_run.sh
+./deploy_cloud_run.sh YOUR_GCP_PROJECT_ID us-central1
+```
+
+**Windows:**
+```cmd
+deploy_cloud_run.bat YOUR_GCP_PROJECT_ID us-central1
+```
 
 ---
 
