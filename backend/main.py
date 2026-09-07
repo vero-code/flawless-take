@@ -21,17 +21,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
-from pydantic import BaseModel
 
-import agent_service
 import agent_tools
 import database
-import environments
 import mcp_server as _mcp_server
-import safety_config
 import scene_memory
 import secrets_manager
 import storage
+from routers import agent_router, history_router, system_router
 
 logger = logging.getLogger(__name__)
 
@@ -165,111 +162,11 @@ app.mount("/mcp", _mcp_server.mcp_app)
 
 
 # ---------------------------------------------------------------------------
-# Health check
+# Include Modular API Routers (System/Environments, History/PDF, Agent)
 # ---------------------------------------------------------------------------
-@app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.get("/api/mcp-info")
-async def mcp_info() -> dict:
-    """Return MCP server metadata for the UI status badge."""
-    return {
-        "server_name": "Flawless Take Studio MCP",
-        "version": "1.0.0",
-        "transport": "SSE",
-        "sse_endpoint": "/mcp/sse",
-        "tools": _mcp_server.MCP_TOOL_NAMES,
-        "tool_count": len(_mcp_server.MCP_TOOL_NAMES),
-        "claude_desktop_config": {
-            "mcpServers": {
-                "flawless-take": {
-                    "url": "http://localhost:8000/mcp/sse"
-                }
-            }
-        },
-    }
-
-
-# ---------------------------------------------------------------------------
-# Phase 4 Step 6: Google Cloud Agent Development Kit (ADK) & Agent Engine Info
-# ---------------------------------------------------------------------------
-@app.get("/api/agent-engine/info")
-async def agent_engine_info() -> dict:
-    """Return Google Cloud ADK Agent Engine packaging status and specifications."""
-    manifest_file = Path(__file__).parent / "agent_engine" / "manifest.json"
-    manifest_data = {}
-    if manifest_file.exists():
-        with open(manifest_file, "r", encoding="utf-8") as f:
-            manifest_data = json.load(f)
-
-    return {
-        "status": "ready",
-        "framework": "Google Cloud Agent Development Kit (ADK)",
-        "agent_name": manifest_data.get("name", "flawless-take-continuity-supervisor"),
-        "version": manifest_data.get("version", "1.0.0"),
-        "model": manifest_data.get("model", {}).get("name", "gemini-3.8-flash"),
-        "entrypoint": "agent_engine.agent:ContinuitySupervisorAgent",
-        "serverless_app": "agent_engine.serverless_app:app",
-        "tools_count": len(manifest_data.get("tools", [])),
-        "deployment_targets": [
-            "Google Cloud Vertex AI Reasoning Engine / Agent Engine",
-            "Google Cloud Run (Serverless Container)",
-        ],
-        "dockerfile": "Dockerfile.agent_engine",
-        "manifest": manifest_data,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Phase 5 Step 1: Safety & Guardrails Policy Endpoint
-# ---------------------------------------------------------------------------
-@app.get("/api/safety/config")
-async def safety_config_info() -> dict:
-    """Return active Gemini Safety Settings and film studio guardrails policy."""
-    return safety_config.get_safety_policy_metadata()
-
-
-# ---------------------------------------------------------------------------
-# Phase 5 Step 2: Studio Secrets Status Endpoint (Google Secret Manager)
-# ---------------------------------------------------------------------------
-@app.get("/api/secrets/status")
-async def secrets_status() -> dict:
-    """Return safe audit status of studio secrets and Secret Manager integration."""
-    return secrets_manager.get_secrets_status()
-
-
-# ---------------------------------------------------------------------------
-# Phase 5 Step 4: Agent Deployment & Multi-Environment (Agent Builder)
-# ---------------------------------------------------------------------------
-@app.get("/api/system/version")
-async def system_version() -> dict:
-    """Return active serving environment, immutable version history, and Agent Builder metadata."""
-    return environments.get_environment_metadata()
-
-
-@app.post("/api/webhook/agent-builder")
-async def agent_builder_webhook(request: Request) -> dict:
-    """
-    Official Google Cloud Agent Builder / Dialogflow CX webhook fulfillment endpoint.
-    Handles intent tags (check_continuity, generate_checklist, emit_alert).
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    return await environments.handle_agent_builder_webhook_async(body)
-
-
-@app.get("/api/agent-builder/spec")
-async def agent_builder_spec() -> dict:
-    """Return the official Google Cloud Agent Builder / Dialogflow CX specification."""
-    spec_path = Path(__file__).parent / "agent_builder_spec.json"
-    if spec_path.exists():
-        with open(spec_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"error": "agent_builder_spec.json not found"}
+app.include_router(system_router)
+app.include_router(history_router)
+app.include_router(agent_router)
 
 
 # ---------------------------------------------------------------------------
@@ -718,156 +615,7 @@ async def compare_takes(
     }
 
 
-# ---------------------------------------------------------------------------
-# Scene State & Memory endpoint
-# ---------------------------------------------------------------------------
-@app.get("/api/scene-state")
-async def get_scene_state(
-    scene: str = Query(..., description="Scene heading/name"),
-    character: str = Query(..., description="Character name"),
-) -> dict:
-    """
-    Return accumulated continuity memory, drift status (STABLE / DRIFTING / CRITICAL),
-    baseline take, and chronological take timeline for a given scene and character.
-    """
-    chronology = await database.get_scene_chronology(scene, character)
-    return _build_scene_state(scene, character, chronology)
 
-
-
-# ---------------------------------------------------------------------------
-# History endpoints
-# ---------------------------------------------------------------------------
-@app.get("/api/history")
-async def history(
-    scene: str | None = Query(None),
-    character: str | None = Query(None),
-    limit: int = Query(100, le=500),
-) -> list[dict]:
-    """
-    Return continuity check history, newest first.
-    Optional query params: scene, character, limit.
-    """
-    records = await database.list_records(scene=scene, character=character, limit=limit)
-    # Attach preview URLs
-    for r in records:
-        r["preview_ref_url"] = storage.url(r["preview_ref"]) if r.get("preview_ref") else None
-        r["preview_cur_url"] = storage.url(r["preview_cur"]) if r.get("preview_cur") else None
-    return records
-
-
-@app.get("/api/history/{record_id}")
-async def history_record(record_id: int) -> dict:
-    """Return a single history record by id, including the full report."""
-    record = await database.get_record(record_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
-    record["preview_ref_url"] = storage.url(record["preview_ref"]) if record.get("preview_ref") else None
-    record["preview_cur_url"] = storage.url(record["preview_cur"]) if record.get("preview_cur") else None
-    return record
-
-
-@app.delete("/api/history/{record_id}")
-async def delete_history_record(record_id: int) -> dict[str, str]:
-    """Delete a single history record by id."""
-    deleted = await database.delete_record(record_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Record not found")
-    return {"status": "deleted", "id": str(record_id)}
-
-
-@app.get("/api/history/{record_id}/pdf")
-async def export_history_pdf(record_id: int):
-    """Generate and return an official Continuity Log PDF for a record."""
-    record = await database.get_record(record_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
-
-    try:
-        import pdf_export
-        pdf_bytes = pdf_export.generate_continuity_pdf(record)
-    except Exception as exc:
-        logger.exception("Failed to generate PDF")
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}") from exc
-
-    from urllib.parse import quote
-    from fastapi.responses import Response
-
-    scene_part = str(record.get("scene", "scene")).strip().replace(" ", "_")
-    take_part = record.get("take") or f"{record.get('take_ref')}_vs_{record.get('take_current')}" or "log"
-    raw_name = f"continuity_{scene_part}_take_{take_part}.pdf"
-    encoded_name = quote(raw_name)
-
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
-        },
-    )
-
-
-# ---------------------------------------------------------------------------
-# Phase 4: Autonomous Agent Copilot (AFC Tool Calling)
-# ---------------------------------------------------------------------------
-class AgentQueryRequest(BaseModel):
-    prompt: str
-    scene: str = ""
-    character: str = ""
-    script_context: str = ""
-
-
-@app.post("/api/agent/query")
-async def agent_query_endpoint(req: AgentQueryRequest) -> dict:
-    """Run autonomous agent query with tool calling."""
-    if not req.prompt.strip():
-        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
-    try:
-        result = await agent_service.run_agent_query(
-            prompt=req.prompt,
-            scene=req.scene,
-            character=req.character,
-            script_context=req.script_context,
-        )
-        return result
-    except Exception as exc:
-        logger.exception("Agent query failed")
-        raise HTTPException(status_code=500, detail=f"Agent execution error: {exc}") from exc
-
-
-# ---------------------------------------------------------------------------
-# Phase 4 Step 3: Direct Department Action Checklist endpoint
-# ---------------------------------------------------------------------------
-class ChecklistRequest(BaseModel):
-    scene: str
-    character: str
-    discrepancies: str            # plain-text violations, one per line or comma-separated
-    next_take: str = ""
-
-
-@app.post("/api/agent/checklist")
-async def generate_checklist_endpoint(req: ChecklistRequest) -> dict:
-    """
-    Directly invoke the generate_department_checklist tool without a full agent loop.
-    Returns a structured department action checklist JSON.
-    """
-    if not req.discrepancies.strip():
-        raise HTTPException(status_code=400, detail="discrepancies cannot be empty")
-    try:
-        result = await agent_tools.generate_department_checklist(
-            scene=req.scene,
-            character=req.character,
-            discrepancies=req.discrepancies,
-            next_take=req.next_take,
-        )
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-        return result
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Checklist generation failed")
-        raise HTTPException(status_code=500, detail=f"Checklist generation error: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
