@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import logging
@@ -14,21 +13,21 @@ from pathlib import Path
 # Ensure backend/ siblings (database, storage) are importable regardless of cwd
 sys.path.insert(0, str(Path(__file__).parent))
 
-from confluent_kafka import Consumer, Producer
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 
 import agent_tools
 import database
+import event_bus
 import mcp_server as _mcp_server
 import scene_memory
 import secrets_manager
 import storage
-from routers import agent_router, history_router, system_router
+from routers import agent_router, events_router, history_router, system_router
 
 logger = logging.getLogger(__name__)
 
@@ -59,80 +58,15 @@ def _get_client() -> genai.Client:
 
 
 # ---------------------------------------------------------------------------
-# Confluent Kafka producer — lazily created, None when credentials are absent
-# (publishing is best-effort and never blocks the HTTP response)
+# Real-time event publishing delegate (implementation in event_bus.py)
 # ---------------------------------------------------------------------------
-KAFKA_TOPIC = os.getenv("CONFLUENT_TOPIC", "flawless-take-events")
-_producer: Producer | None = None
-
-
-def _get_producer() -> Producer | None:
-    """Return a cached Producer, or None if Confluent credentials are not set."""
-    global _producer
-    if _producer is not None:
-        return _producer
-    bootstrap = os.getenv("CONFLUENT_BOOTSTRAP_SERVERS")
-    api_key = os.getenv("CONFLUENT_API_KEY")
-    api_secret = os.getenv("CONFLUENT_API_SECRET")
-    if not all([bootstrap, api_key, api_secret]):
-        return None
-    _producer = Producer(
-        {
-            "bootstrap.servers": bootstrap,
-            "security.protocol": "SASL_SSL",
-            "sasl.mechanisms": "PLAIN",
-            "sasl.username": api_key,
-            "sasl.password": api_secret,
-        }
-    )
-    return _producer
-
-
-_alert_subscribers: set[asyncio.Queue[str]] = set()
-
-
-def _broadcast_event(payload: dict) -> None:
-    """Broadcast an alert payload to all connected SSE clients."""
-    data_str = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-    dead = set()
-    for q in _alert_subscribers:
-        try:
-            q.put_nowait(data_str)
-        except Exception:
-            dead.add(q)
-    _alert_subscribers.difference_update(dead)
-
-
-def _publish_event(payload: dict) -> None:
-    """Serialize payload to JSON, broadcast locally, and produce to Kafka."""
-    _broadcast_event(payload)
-    producer = _get_producer()
-    if producer is None:
-        logger.debug("Kafka producer not configured — skipping event publish.")
-        return
-
-
-    def _on_delivery(err, msg):
-        if err:
-            logger.error("Kafka delivery failed: %s", err)
-        else:
-            logger.info("Kafka event delivered → %s [%d]", msg.topic(), msg.partition())
-
-    try:
-        producer.produce(
-            topic=KAFKA_TOPIC,
-            value=json.dumps(payload, ensure_ascii=False).encode(),
-            on_delivery=_on_delivery,
-        )
-        producer.poll(0)  # trigger delivery callbacks without blocking
-    except Exception:
-        logger.exception("Kafka produce() raised unexpectedly")
+_publish_event = event_bus.publish_event
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await database.init_db()
-    agent_tools.register_event_publisher(_publish_event)
+    agent_tools.register_event_publisher(event_bus.publish_event)
     yield
 
 
@@ -162,72 +96,12 @@ app.mount("/mcp", _mcp_server.mcp_app)
 
 
 # ---------------------------------------------------------------------------
-# Include Modular API Routers (System/Environments, History/PDF, Agent)
+# Include Modular API Routers (System/Environments, History/PDF, Agent, Events)
 # ---------------------------------------------------------------------------
 app.include_router(system_router)
 app.include_router(history_router)
 app.include_router(agent_router)
-
-
-# ---------------------------------------------------------------------------
-# Alerts — SSE stream that consumes flawless-take-events from Kafka
-# ---------------------------------------------------------------------------
-def _make_consumer() -> Consumer | None:
-    """Create a fresh Kafka Consumer. Returns None if credentials are absent."""
-    bootstrap = os.getenv("CONFLUENT_BOOTSTRAP_SERVERS")
-    api_key = os.getenv("CONFLUENT_API_KEY")
-    api_secret = os.getenv("CONFLUENT_API_SECRET")
-    if not all([bootstrap, api_key, api_secret]):
-        return None
-    c = Consumer(
-        {
-            "bootstrap.servers": bootstrap,
-            "security.protocol": "SASL_SSL",
-            "sasl.mechanisms": "PLAIN",
-            "sasl.username": api_key,
-            "sasl.password": api_secret,
-            "group.id": f"flawless-alerts-{int(time.time())}",  # unique group → always read latest
-            "auto.offset.reset": "latest",
-            "enable.auto.commit": True,
-        }
-    )
-    c.subscribe([KAFKA_TOPIC])
-    return c
-
-
-async def _sse_generator(request: Request):
-    """Yield SSE-formatted strings without blocking threads or event loop."""
-    q: asyncio.Queue[str] = asyncio.Queue()
-    _alert_subscribers.add(q)
-    yield ": heartbeat\n\n"
-    try:
-        while True:
-            if await request.is_disconnected():
-                break
-            try:
-                data = await asyncio.wait_for(q.get(), timeout=10.0)
-                yield data
-            except asyncio.TimeoutError:
-                yield ": keep-alive\n\n"
-    finally:
-        _alert_subscribers.discard(q)
-
-
-@app.get("/api/alerts")
-async def alerts(request: Request):
-    """
-    Server-Sent Events stream. Connect with EventSource('/api/alerts').
-    Broadcasts real-time events to connected browser tabs without blocking.
-    """
-    return StreamingResponse(
-        _sse_generator(request),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+app.include_router(events_router)
 
 
 
