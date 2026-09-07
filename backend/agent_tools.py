@@ -17,6 +17,7 @@ import time
 from typing import Callable
 
 import database
+import safety_config
 import storage
 
 logger = logging.getLogger(__name__)
@@ -332,6 +333,7 @@ If a department has no issues, use an empty array [].
             config=gtypes.GenerateContentConfig(
                 temperature=0.2,
                 response_mime_type="application/json",
+                safety_settings=safety_config.get_safety_settings(),
             ),
         )
 

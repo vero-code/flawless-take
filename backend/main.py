@@ -27,6 +27,7 @@ import agent_service
 import agent_tools
 import database
 import mcp_server as _mcp_server
+import safety_config
 import storage
 
 logger = logging.getLogger(__name__)
@@ -214,6 +215,15 @@ async def agent_engine_info() -> dict:
         "dockerfile": "Dockerfile.agent_engine",
         "manifest": manifest_data,
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Step 1: Safety & Guardrails Policy Endpoint
+# ---------------------------------------------------------------------------
+@app.get("/api/safety/config")
+async def safety_config_info() -> dict:
+    """Return active Gemini Safety Settings and film studio guardrails policy."""
+    return safety_config.get_safety_policy_metadata()
 
 
 # ---------------------------------------------------------------------------

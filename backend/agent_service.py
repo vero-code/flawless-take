@@ -14,6 +14,7 @@ from google import genai
 from google.genai import types
 
 import agent_tools
+import safety_config
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,11 @@ async def run_agent_query(
 
     client = genai.Client(api_key=api_key)
 
+    # Guardrails: validate prompt against injection patterns
+    is_safe, reason = safety_config.validate_script_content_safety(prompt)
+    if not is_safe:
+        raise ValueError(f"Safety guardrail triggered: {reason}")
+
     # Build context-aware prompt if scene/character are active
     context_prefix = ""
     if scene or character:
@@ -92,6 +98,7 @@ async def run_agent_query(
             system_instruction=AGENT_SYSTEM_INSTRUCTION,
             tools=_get_tools_list(),
             temperature=0.4,
+            safety_settings=safety_config.get_safety_settings(),
         ),
     )
 

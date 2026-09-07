@@ -24,6 +24,7 @@ from google import genai
 from google.genai import types
 
 import agent_tools
+import safety_config
 
 logger = logging.getLogger("agent_engine.continuity_agent")
 
@@ -135,6 +136,11 @@ class ContinuitySupervisorAgent:
         if not self._is_setup:
             self.set_up()
 
+        # Guardrails: validate prompt against malicious injection directives
+        is_safe, reason = safety_config.validate_script_content_safety(prompt)
+        if not is_safe:
+            raise ValueError(f"Safety guardrail triggered: {reason}")
+
         context_prefix = ""
         if scene or character:
             context_prefix = f"[Active Context: Scene: '{scene or 'Not specified'}', Character: '{character or 'Not specified'}']\n"
@@ -149,6 +155,7 @@ class ContinuitySupervisorAgent:
                 system_instruction=SYSTEM_INSTRUCTION,
                 tools=self._tools_list,
                 temperature=0.4,
+                safety_settings=safety_config.get_safety_settings(),
             ),
         )
 

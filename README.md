@@ -84,6 +84,7 @@ Aligned with the **Agentic Cinema Hackathon Guide**:
   - [x] **Agent Engine & Managed Hosting (Google Cloud ADK / Vertex AI)**: Packaged according to Google Cloud Agent Development Kit (ADK) and Vertex AI Reasoning Engine standards for serverless deployment (`agent_engine/`, `Dockerfile.agent_engine`, `deploy_vertex.py`).
 
 - [ ] **🚀 Phase 5: Deployment & Safety**
+  - [x] **Safety & Guardrails (Gemini Safety Settings)**: Calibrated `SafetySetting` filters for hate speech, harassment, and dangerous content tailored for film set theatrical SFX & props, with pre-flight prompt injection guardrails (`backend/safety_config.py`).
 
 
 ---
