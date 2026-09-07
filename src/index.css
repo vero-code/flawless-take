@@ -57,9 +57,9 @@ body {
 
 #root {
   width: 100%;
-  max-width: 1560px;
+  max-width: 1640px;
   margin: 0 auto;
-  padding: 0 28px 80px;
+  padding: 0 24px 80px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;

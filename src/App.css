@@ -679,28 +679,27 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 22px 32px;
+  padding: 16px 26px;
   background: rgba(15, 17, 26, 0.88);
   backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 16px;
-  margin-top: 20px;
+  margin-top: 16px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
-  flex-wrap: wrap;
-  gap: 20px;
+  gap: 16px;
 }
 
 .studio-header-left {
   display: flex;
   align-items: center;
-  gap: 28px;
-  flex-wrap: wrap;
+  gap: 20px;
+  flex-shrink: 0;
 }
 
 .studio-brand {
   display: flex;
   align-items: center;
-  padding-right: 12px;
+  padding-right: 8px;
 }
 
 /* ── Brand Logo Typography matching official logo ─────── */
@@ -714,7 +713,7 @@
 
 .brand-logo-flawless {
   font-family: var(--font-brand);
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 300;
   letter-spacing: 0.44em;
   color: #f8fafc;
@@ -731,7 +730,7 @@
 
 .brand-logo-take {
   font-family: var(--font-brand);
-  font-size: 38px;
+  font-size: 36px;
   font-weight: 900;
   letter-spacing: 0.22em;
   color: #ffffff;
@@ -752,20 +751,22 @@
 .studio-prod-badge {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 10px 18px;
-  border-radius: 10px;
+  padding: 8px 14px;
+  border-radius: 9px;
+  white-space: nowrap;
 }
 
 .studio-rec-dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #ef4444;
   box-shadow: 0 0 10px #ef4444;
   animation: pulse-rec 1.5s infinite ease-in-out;
+  flex-shrink: 0;
 }
 
 @keyframes pulse-rec {
@@ -774,26 +775,19 @@
 }
 
 .studio-prod-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #f1f5f9;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.5px;
 }
 
 .studio-prod-cam {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   color: #06b6d4;
   background: rgba(6, 182, 212, 0.15);
-  padding: 4px 10px;
-  border-radius: 6px;
-}
-
-.studio-header-right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
+  padding: 3px 8px;
+  border-radius: 5px;
 }
 
 .studio-timecode-hud {
@@ -802,43 +796,48 @@
   align-items: flex-end;
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 6px 16px;
+  padding: 4px 12px;
   border-radius: 8px;
   font-family: var(--font-mono);
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .studio-tc-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #64748b;
   letter-spacing: 1.2px;
 }
 
 .studio-tc-val {
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 800;
   color: #38bdf8;
   letter-spacing: 1.5px;
+  line-height: 1.1;
 }
 
 .studio-telemetry {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .studio-telemetry-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 7px;
+  font-size: 12.5px;
   font-weight: 600;
-  padding: 6px 14px;
+  padding: 6px 12px;
   border-radius: 8px;
   user-select: none;
   transition: all 0.15s ease;
   cursor: default;
+  white-space: nowrap;
 }
 
 .studio-telemetry-item:hover {
@@ -852,11 +851,12 @@
 }
 
 .studio-dot--ai {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #c5a880;
   box-shadow: 0 0 8px #c5a880;
+  flex-shrink: 0;
 }
 
 .studio-telemetry-item--confluent {
@@ -866,11 +866,12 @@
 }
 
 .studio-dot--confluent {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #10b981;
   box-shadow: 0 0 8px #10b981;
+  flex-shrink: 0;
 }
 
 .studio-telemetry-item--ibm {
@@ -880,11 +881,73 @@
 }
 
 .studio-dot--ibm {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #3b82f6;
   box-shadow: 0 0 8px #3b82f6;
+  flex-shrink: 0;
+}
+
+/* ── Responsive Studio Header ────────────────────────── */
+@media (max-width: 1320px) {
+  .studio-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "left timecode"
+      "telemetry telemetry";
+    row-gap: 14px;
+    column-gap: 16px;
+    padding: 14px 20px;
+  }
+
+  .studio-header-left {
+    grid-area: left;
+  }
+
+  .studio-timecode-hud {
+    grid-area: timecode;
+    margin-left: 0;
+  }
+
+  .studio-telemetry {
+    grid-area: telemetry;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    width: 100%;
+  }
+}
+
+@media (max-width: 800px) {
+  .studio-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .studio-header-left {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .studio-timecode-hud {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+
+  .studio-telemetry {
+    justify-content: flex-start;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
 }
 
 /* ── Studio Navigation ───────────────────────────────── */
@@ -940,11 +1003,12 @@
 /* ── Main Cockpit (Widescreen 2-Column Grid) ─────────── */
 .studio-cockpit {
   display: grid;
-  grid-template-columns: 460px 1fr;
-  gap: 32px;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 24px;
   align-items: start;
   width: 100%;
   margin-top: 10px;
+  min-width: 0;
 }
 
 @media (max-width: 1180px) {
@@ -957,12 +1021,20 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
 }
 
 .cockpit-deck {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  background: rgba(18, 20, 30, 0.92);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  min-width: 0;
 }
 
 /* ── Slate Card ──────────────────────────────────────── */
@@ -1088,12 +1160,15 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
+  min-width: 0;
 }
 
 .deck-viewfinder-grid--compare {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 860px) {
@@ -1109,12 +1184,14 @@
   max-width: 840px;
   margin: 0 auto;
   width: 100%;
+  min-width: 0;
 }
 
 .viewfinder-col {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
 }
 
 .deck-take-badge-row {
@@ -1157,16 +1234,18 @@
   flex-direction: column;
   gap: 8px;
   width: 100%;
+  min-width: 0;
 }
 
 .viewfinder-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 4px 2px;
 }
 
 .viewfinder-label {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   letter-spacing: 0.8px;
   color: #cbd5e1;
@@ -1174,16 +1253,17 @@
 
 .viewfinder-meta {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: #64748b;
+  font-size: 12px;
+  color: #94a3b8;
   letter-spacing: 0.8px;
 }
 
 .viewfinder-drop {
   position: relative;
   aspect-ratio: 16 / 9;
-  min-height: 400px;
   width: 100%;
+  min-height: 220px;
+  max-height: 380px;
   background: #07090f;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
