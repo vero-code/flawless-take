@@ -383,3 +383,20 @@ If a department has no issues, use an empty array [].
     except Exception as exc:
         logger.exception("generate_department_checklist failed")
         return {"error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# Canonical Registry of All Production Continuity Tools
+# ---------------------------------------------------------------------------
+ALL_CONTINUITY_TOOLS = (
+    get_scene_continuity_state,
+    query_take_records,
+    get_take_full_report,
+    check_script_continuity,
+    compare_recorded_takes,
+    emit_crew_alert,
+    export_continuity_pdf,
+    generate_department_checklist,
+)
+
+ALL_TOOL_NAMES = [t.__name__ for t in ALL_CONTINUITY_TOOLS]

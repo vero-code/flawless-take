@@ -92,16 +92,7 @@ class ContinuitySupervisorAgent:
         else:
             self._client = genai.Client(api_key=api_key)
 
-        self._tools_list = [
-            agent_tools.get_scene_continuity_state,
-            agent_tools.query_take_records,
-            agent_tools.get_take_full_report,
-            agent_tools.check_script_continuity,
-            agent_tools.compare_recorded_takes,
-            agent_tools.emit_crew_alert,
-            agent_tools.export_continuity_pdf,
-            agent_tools.generate_department_checklist,
-        ]
+        self._tools_list = list(agent_tools.ALL_CONTINUITY_TOOLS)
         self._is_setup = True
         logger.info(
             "ContinuitySupervisorAgent initialized with model %s and %d tools.",

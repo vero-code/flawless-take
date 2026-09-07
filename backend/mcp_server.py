@@ -169,16 +169,7 @@ async def generate_department_checklist(
 mcp_app = mcp.http_app(path="/")
 
 # Tool names for the /api/mcp-info endpoint
-MCP_TOOL_NAMES = [
-    "get_scene_continuity_state",
-    "query_take_records",
-    "get_take_full_report",
-    "check_script_continuity",
-    "compare_recorded_takes",
-    "emit_crew_alert",
-    "export_continuity_pdf",
-    "generate_department_checklist",
-]
+MCP_TOOL_NAMES = agent_tools.ALL_TOOL_NAMES
 
 # ---------------------------------------------------------------------------
 # stdio entry point for Claude Desktop local integration
