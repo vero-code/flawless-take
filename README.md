@@ -85,6 +85,7 @@ Aligned with the **Agentic Cinema Hackathon Guide**:
 
 - [ ] **🚀 Phase 5: Deployment & Safety**
   - [x] **Safety & Guardrails (Gemini Safety Settings)**: Calibrated `SafetySetting` filters for hate speech, harassment, and dangerous content tailored for film set theatrical SFX & props, with pre-flight prompt injection guardrails (`backend/safety_config.py`).
+  - [x] **Studio Secrets (Google Cloud Secret Manager)**: Enterprise credential management with automatic dynamic resolution from Secret Manager and seamless offline `.env` fallback (`backend/secrets_manager.py`, `backend/setup_secrets.py`).
 
 
 ---

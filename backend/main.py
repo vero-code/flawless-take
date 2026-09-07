@@ -28,12 +28,15 @@ import agent_tools
 import database
 import mcp_server as _mcp_server
 import safety_config
+import secrets_manager
 import storage
 
 logger = logging.getLogger(__name__)
 
 # Always load from backend/.env relative to this file, regardless of cwd
 load_dotenv(Path(__file__).parent / ".env")
+# Resolve Studio Secrets dynamically (Google Cloud Secret Manager or local .env)
+secrets_manager.load_studio_secrets()
 
 # ---------------------------------------------------------------------------
 # Gemini client — lazily created on first request so a missing key produces
@@ -224,6 +227,15 @@ async def agent_engine_info() -> dict:
 async def safety_config_info() -> dict:
     """Return active Gemini Safety Settings and film studio guardrails policy."""
     return safety_config.get_safety_policy_metadata()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Step 2: Studio Secrets Status Endpoint (Google Secret Manager)
+# ---------------------------------------------------------------------------
+@app.get("/api/secrets/status")
+async def secrets_status() -> dict:
+    """Return safe audit status of studio secrets and Secret Manager integration."""
+    return secrets_manager.get_secrets_status()
 
 
 # ---------------------------------------------------------------------------
