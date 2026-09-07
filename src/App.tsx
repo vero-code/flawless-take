@@ -1,35 +1,19 @@
 import { useRef, useState } from 'react'
 import './App.css'
 
-import {
-  API_URL,
-  COMPARE_URL,
-  getMediaUrl,
-  downloadPdf,
-} from './config'
-import type {
-  CheckResult,
-  CompareResult,
-  Mode,
-  Status,
-  Page,
-} from './types'
+import { API_URL, COMPARE_URL } from './config'
+import type { CheckResult, CompareResult, Mode, Status, Page } from './types'
 import {
   AlertFeed,
   ImageDrop,
-  Markdown,
-  MatchBadge,
   McpStatusBadge,
   ScriptPanel,
   HistoryTab,
   SceneMemoryTimeline,
   AgentCopilotView,
   VoiceModeView,
+  TakeResultBox,
 } from './components'
-
-// ---------------------------------------------------------------------------
-// Main app
-// ---------------------------------------------------------------------------
 
 function App() {
   const [page, setPage] = useState<Page>('check')
@@ -51,6 +35,7 @@ function App() {
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [refreshCounter, setRefreshCounter] = useState(0)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const refInputRef = useRef<HTMLInputElement>(null)
   const curInputRef = useRef<HTMLInputElement>(null)
@@ -78,12 +63,14 @@ function App() {
     e.preventDefault()
     if (!file) return
     setStatus('loading'); setResult(null); setErrorMsg(null)
+
     const body = new FormData()
     body.append('scene', scene)
     body.append('take', take)
     body.append('character', character)
     body.append('file', file)
     body.append('script_context', scriptContext)
+
     try {
       const res = await fetch(API_URL, { method: 'POST', body })
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`)
@@ -100,6 +87,7 @@ function App() {
     e.preventDefault()
     if (!refFile || !curFile) return
     setStatus('loading'); setCompareResult(null); setErrorMsg(null)
+
     const body = new FormData()
     body.append('scene', scene)
     body.append('take_ref', takeRef)
@@ -108,6 +96,7 @@ function App() {
     body.append('reference', refFile)
     body.append('current', curFile)
     body.append('script_context', scriptContext)
+
     try {
       const res = await fetch(COMPARE_URL, { method: 'POST', body })
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`)
@@ -121,8 +110,7 @@ function App() {
   }
 
   const isSingle = mode === 'single'
-  const submitDisabled = status === 'loading' ||
-    (isSingle ? !file : !refFile || !curFile)
+  const submitDisabled = status === 'loading' || (isSingle ? !file : !refFile || !curFile)
 
   return (
     <>
@@ -134,215 +122,102 @@ function App() {
           <McpStatusBadge />
         </div>
 
-        {/* Page nav */}
+        {/* Page navigation */}
         <div className="mode-toggle">
-          <button type="button"
-            className={`mode-btn ${page === 'check' ? 'mode-btn--active' : ''}`}
-            onClick={() => setPage('check')}>
+          <button type="button" className={`mode-btn ${page === 'check' ? 'mode-btn--active' : ''}`} onClick={() => setPage('check')}>
             Check
           </button>
-          <button type="button"
-            className={`mode-btn ${page === 'agent' ? 'mode-btn--active' : ''}`}
-            onClick={() => setPage('agent')}>
+          <button type="button" className={`mode-btn ${page === 'agent' ? 'mode-btn--active' : ''}`} onClick={() => setPage('agent')}>
             🤖 Agent Copilot
           </button>
-          <button type="button"
-            id="voice-mode-tab"
-            className={`mode-btn ${page === 'voice' ? 'mode-btn--active' : ''}`}
-            onClick={() => setPage('voice')}>
+          <button type="button" id="voice-mode-tab" className={`mode-btn ${page === 'voice' ? 'mode-btn--active' : ''}`} onClick={() => setPage('voice')}>
             🎤 Voice Mode
           </button>
-          <button type="button"
-            className={`mode-btn ${page === 'history' ? 'mode-btn--active' : ''}`}
-            onClick={() => setPage('history')}>
+          <button type="button" className={`mode-btn ${page === 'history' ? 'mode-btn--active' : ''}`} onClick={() => setPage('history')}>
             History
           </button>
         </div>
 
-        {/* History page */}
         {page === 'history' && <HistoryTab />}
 
-        {/* Agent Copilot page */}
         {page === 'agent' && (
           <AgentCopilotView
-            scene={scene}
-            character={character}
-            scriptContext={scriptContext}
-            onSceneChange={setScene}
-            onCharacterChange={setCharacter}
+            scene={scene} character={character} scriptContext={scriptContext}
+            onSceneChange={setScene} onCharacterChange={setCharacter}
           />
         )}
 
-        {/* Voice Mode page */}
         {page === 'voice' && (
           <VoiceModeView
-            scene={scene}
-            character={character}
-            onSceneChange={setScene}
-            onCharacterChange={setCharacter}
+            scene={scene} character={character}
+            onSceneChange={setScene} onCharacterChange={setCharacter}
           />
         )}
 
-        {/* Check page */}
-        {page === 'check' && <>
-        {/* Mode toggle */}
-        <div className="mode-toggle">
-          <button type="button"
-            className={`mode-btn ${isSingle ? 'mode-btn--active' : ''}`}
-            onClick={() => switchMode('single')}>
-            Single check
-          </button>
-          <button type="button"
-            className={`mode-btn ${!isSingle ? 'mode-btn--active' : ''}`}
-            onClick={() => switchMode('compare')}>
-            Compare takes
-          </button>
-        </div>
-
-        <form className="check-form"
-          onSubmit={isSingle ? handleSingleSubmit : handleCompareSubmit}>
-          <ScriptPanel onContext={setScriptContext} />
-
-          {/* Common fields */}
-          <div className="form-row">
-            <label htmlFor="scene">Scene</label>
-            <input id="scene" type="text" placeholder="e.g. INT. BEDROOM – DAY"
-              value={scene} onChange={e => setScene(e.target.value)} required />
-          </div>
-
-          <div className="form-row">
-            <label htmlFor="character">Character</label>
-            <input id="character" type="text" placeholder="e.g. Elena"
-              value={character} onChange={e => setCharacter(e.target.value)} required />
-          </div>
-
-          <SceneMemoryTimeline
-            scene={scene}
-            character={character}
-            refreshTrigger={refreshCounter}
-            onSelectReferenceTake={(t) => {
-              setMode('compare')
-              setTakeRef(t)
-            }}
-          />
-
-          {/* Single mode */}
-          {isSingle && <>
-            <div className="form-row">
-              <label htmlFor="take">Take #</label>
-              <input id="take" type="text" placeholder="e.g. 3"
-                value={take} onChange={e => setTake(e.target.value)} required />
+        {page === 'check' && (
+          <>
+            <div className="mode-toggle">
+              <button type="button" className={`mode-btn ${isSingle ? 'mode-btn--active' : ''}`} onClick={() => switchMode('single')}>
+                Single check
+              </button>
+              <button type="button" className={`mode-btn ${!isSingle ? 'mode-btn--active' : ''}`} onClick={() => switchMode('compare')}>
+                Compare takes
+              </button>
             </div>
-            <ImageDrop id="photo" label="Photo" preview={preview}
-              inputRef={fileInputRef}
-              onChange={makeFileHandler(setFile, setPreview)} />
-          </>}
 
-          {/* Compare mode */}
-          {!isSingle && <>
-            <div className="form-row-pair">
+            <form className="check-form" onSubmit={isSingle ? handleSingleSubmit : handleCompareSubmit}>
+              <ScriptPanel onContext={setScriptContext} />
+
               <div className="form-row">
-                <label htmlFor="take-ref">Reference take #</label>
-                <input id="take-ref" type="text" placeholder="e.g. 2"
-                  value={takeRef} onChange={e => setTakeRef(e.target.value)} required />
+                <label htmlFor="scene">Scene</label>
+                <input id="scene" type="text" placeholder="e.g. INT. BEDROOM – DAY" value={scene} onChange={e => setScene(e.target.value)} required />
               </div>
+
               <div className="form-row">
-                <label htmlFor="take-cur">Current take #</label>
-                <input id="take-cur" type="text" placeholder="e.g. 3"
-                  value={takeCurrent} onChange={e => setTakeCurrent(e.target.value)} required />
+                <label htmlFor="character">Character</label>
+                <input id="character" type="text" placeholder="e.g. Elena" value={character} onChange={e => setCharacter(e.target.value)} required />
               </div>
-            </div>
-            <div className="form-row-pair">
-              <ImageDrop id="ref-photo" label="Reference photo"
-                preview={refPreview} inputRef={refInputRef}
-                onChange={makeFileHandler(setRefFile, setRefPreview)} />
-              <ImageDrop id="cur-photo" label="Current photo"
-                preview={curPreview} inputRef={curInputRef}
-                onChange={makeFileHandler(setCurFile, setCurPreview)} />
-            </div>
-          </>}
 
-          <button type="submit" className="submit-btn" disabled={submitDisabled}>
-            {status === 'loading'
-              ? 'Analysing…'
-              : isSingle ? 'Check Take' : 'Compare Takes'}
-          </button>
-        </form>
+              <SceneMemoryTimeline
+                scene={scene} character={character} refreshTrigger={refreshCounter}
+                onSelectReferenceTake={(t) => { setMode('compare'); setTakeRef(t) }}
+              />
 
-        {/* Single result */}
-        {status === 'success' && result && (
-          <div className="result-box result-box--ok">
-            <p className="result-label">
-              Continuity report — {result.character} · Scene {result.scene} · Take {result.take}
-              {result.script_grounded && <span className="grounded-badge"> · script grounded</span>}
-            </p>
-            {result.preview_url && (
-              <div className="result-preview-container">
-                <img src={getMediaUrl(result.preview_url)} className="result-preview-img" alt={`Take ${result.take}`} />
-              </div>
-            )}
-            <Markdown text={result.result} />
-            <p className="result-meta-line">
-              {result.filename} · {(result.size_bytes / 1024).toFixed(1)} KB
-            </p>
-            {result.id && (
-              <div className="pdf-export-row">
-                <button
-                  type="button"
-                  className="pdf-export-btn"
-                  onClick={() => downloadPdf(result.id!, `continuity_${result.scene}_take_${result.take}.pdf`)}
-                >
-                  📄 Export Continuity Log (PDF)
-                </button>
-              </div>
-            )}
-          </div>
+              {isSingle ? (
+                <>
+                  <div className="form-row">
+                    <label htmlFor="take">Take #</label>
+                    <input id="take" type="text" placeholder="e.g. 3" value={take} onChange={e => setTake(e.target.value)} required />
+                  </div>
+                  <ImageDrop id="photo" label="Photo" preview={preview} inputRef={fileInputRef} onChange={makeFileHandler(setFile, setPreview)} />
+                </>
+              ) : (
+                <>
+                  <div className="form-row-pair">
+                    <div className="form-row">
+                      <label htmlFor="take-ref">Reference take #</label>
+                      <input id="take-ref" type="text" placeholder="e.g. 2" value={takeRef} onChange={e => setTakeRef(e.target.value)} required />
+                    </div>
+                    <div className="form-row">
+                      <label htmlFor="take-cur">Current take #</label>
+                      <input id="take-cur" type="text" placeholder="e.g. 3" value={takeCurrent} onChange={e => setTakeCurrent(e.target.value)} required />
+                    </div>
+                  </div>
+                  <div className="form-row-pair">
+                    <ImageDrop id="ref-photo" label="Reference photo" preview={refPreview} inputRef={refInputRef} onChange={makeFileHandler(setRefFile, setRefPreview)} />
+                    <ImageDrop id="cur-photo" label="Current photo" preview={curPreview} inputRef={curInputRef} onChange={makeFileHandler(setCurFile, setCurPreview)} />
+                  </div>
+                </>
+              )}
+
+              <button type="submit" className="submit-btn" disabled={submitDisabled}>
+                {status === 'loading' ? 'Analysing…' : isSingle ? 'Check Take' : 'Compare Takes'}
+              </button>
+            </form>
+
+            <TakeResultBox status={status} result={result} compareResult={compareResult} errorMsg={errorMsg} />
+          </>
         )}
-
-        {/* Compare result */}
-        {status === 'success' && compareResult && (
-          <div className="result-box result-box--ok">
-            <p className="result-label">
-              Comparison — {compareResult.character} · Scene {compareResult.scene}
-              · Take {compareResult.take_ref} vs {compareResult.take_current}
-              {' '}<MatchBadge score={compareResult.match_score} />
-              {compareResult.script_grounded && <span className="grounded-badge"> · script grounded</span>}
-            </p>
-            {(compareResult.preview_ref_url || compareResult.preview_cur_url) && (
-              <div className="history-previews">
-                {compareResult.preview_ref_url && (
-                  <img src={getMediaUrl(compareResult.preview_ref_url)} className="history-preview-img" alt="Reference take" />
-                )}
-                {compareResult.preview_cur_url && (
-                  <img src={getMediaUrl(compareResult.preview_cur_url)} className="history-preview-img" alt="Current take" />
-                )}
-              </div>
-            )}
-            <Markdown text={compareResult.differences} />
-            <p className="result-meta-line">
-              REF: {compareResult.ref_filename} · CUR: {compareResult.cur_filename}
-            </p>
-            {compareResult.id && (
-              <div className="pdf-export-row">
-                <button
-                  type="button"
-                  className="pdf-export-btn"
-                  onClick={() => downloadPdf(compareResult.id!, `continuity_${compareResult.scene}_take_${compareResult.take_ref}_vs_${compareResult.take_current}.pdf`)}
-                >
-                  📄 Export Continuity Log (PDF)
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {status === 'error' && errorMsg && (
-          <div className="result-box result-box--err">
-            <p className="result-label">Error</p>
-            <p className="result-value">{errorMsg}</p>
-          </div>
-        )}
-        </>}
       </section>
 
       <div className="ticks"></div>
