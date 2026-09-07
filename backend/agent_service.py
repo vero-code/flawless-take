@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+import gemini_client
 from agent_engine.agent import ContinuitySupervisorAgent
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ def get_agent() -> ContinuitySupervisorAgent:
     """Returns a singleton ContinuitySupervisorAgent instance."""
     global _agent_instance
     if _agent_instance is None:
-        _agent_instance = ContinuitySupervisorAgent(model="gemini-3.8-flash")
+        _agent_instance = ContinuitySupervisorAgent(model=gemini_client.DEFAULT_MODEL)
         _agent_instance.set_up()
     return _agent_instance
 

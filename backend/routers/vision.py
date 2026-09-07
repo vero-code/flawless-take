@@ -10,15 +10,14 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from google import genai
 from google.genai import types
 
 import database
 import event_bus
+import gemini_client
 import safety_config
 import scene_memory
 import storage
@@ -27,22 +26,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Vision & Continuity Analysis"])
 
-MODEL = "gemini-3.8-flash"
-_gemini: genai.Client | None = None
+MODEL = gemini_client.DEFAULT_MODEL
 
 
-def _get_client() -> genai.Client:
-    """Return cached genai.Client, or raise 500 if GEMINI_API_KEY is not set."""
-    global _gemini
-    if _gemini is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GEMINI_API_KEY is not set. Add it to backend/.env and restart.",
-            )
-        _gemini = genai.Client(api_key=api_key)
-    return _gemini
+def _get_client():
+    """Return the shared cached genai.Client (raises RuntimeError → 500 if key missing)."""
+    try:
+        return gemini_client.get_genai_client()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------

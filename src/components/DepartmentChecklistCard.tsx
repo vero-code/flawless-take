@@ -1,6 +1,8 @@
 import type { DepartmentChecklist } from '../types'
 
-const DEPT_META: Record<string, { icon: string; label: string }> = {
+type DeptKey = keyof DepartmentChecklist['departments']
+
+const DEPT_META: Record<DeptKey, { icon: string; label: string }> = {
   makeup:   { icon: '💄', label: 'Makeup' },
   wardrobe: { icon: '👔', label: 'Wardrobe' },
   hair:     { icon: '💇', label: 'Hair' },

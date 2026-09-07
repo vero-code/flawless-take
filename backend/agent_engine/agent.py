@@ -24,6 +24,7 @@ from google import genai
 from google.genai import types
 
 import agent_tools
+import gemini_client
 import safety_config
 
 logger = logging.getLogger("agent_engine.continuity_agent")
@@ -59,7 +60,7 @@ class ContinuitySupervisorAgent:
 
     def __init__(
         self,
-        model: str = "gemini-3.8-flash",
+        model: str = gemini_client.DEFAULT_MODEL,
         project: Optional[str] = None,
         location: str = "us-central1",
     ) -> None:

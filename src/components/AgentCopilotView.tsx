@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { AGENT_QUERY_URL } from '../config'
+import { useEffect, useRef, useState } from 'react'
 import type { AgentChatMessage } from '../types'
+import { useAgentQuery } from '../hooks/useAgentQuery'
 import { Markdown } from './Markdown'
 import { ToolTraceCard } from './ToolTraceCard'
 
@@ -26,8 +26,7 @@ export function AgentCopilotView({
     },
   ])
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const { query, loading, errorMsg, setErrorMsg } = useAgentQuery()
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -48,39 +47,18 @@ export function AgentCopilotView({
       timestamp: Date.now(),
     }
     setMessages(prev => [...prev, userMsg])
-    setLoading(true)
 
-    try {
-      const res = await fetch(AGENT_QUERY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: textToSend,
-          scene: scene.trim(),
-          character: character.trim(),
-          script_context: scriptContext.trim(),
-        }),
-      })
-
-      if (!res.ok) {
-        const errText = await res.text()
-        throw new Error(`Server returned ${res.status}: ${errText}`)
-      }
-
-      const data = await res.json()
+    const data = await query({ prompt: textToSend, scene, character, script_context: scriptContext })
+    if (data) {
       const agentMsg: AgentChatMessage = {
         id: 'agent-' + Date.now(),
         role: 'agent',
-        text: data.response || 'Tools executed successfully.',
+        text: data.response,
         toolCalls: data.tool_calls || [],
         actionsTaken: data.actions_taken || [],
         timestamp: Date.now(),
       }
       setMessages(prev => [...prev, agentMsg])
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
     }
   }
 

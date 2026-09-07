@@ -18,6 +18,7 @@ import time
 from typing import Callable
 
 import database
+import gemini_client
 import safety_config
 import scene_memory
 import storage
@@ -315,14 +316,12 @@ async def generate_department_checklist(
         Structured JSON checklist keyed by department with priority and timestamp.
     """
     try:
-        from google import genai
         from google.genai import types as gtypes
 
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            return {"error": "GEMINI_API_KEY not set"}
-
-        client = genai.Client(api_key=api_key)
+        try:
+            client = gemini_client.get_genai_client()
+        except RuntimeError as exc:
+            return {"error": str(exc)}
 
         synthesis_prompt = f"""\
 You are a Hollywood script supervisor. Based on the following continuity discrepancies found on set, \
@@ -355,7 +354,7 @@ If a department has no issues, use an empty array [].
 """
 
         resp = await client.aio.models.generate_content(
-            model="gemini-3.8-flash",
+            model=gemini_client.DEFAULT_MODEL,
             contents=synthesis_prompt,
             config=gtypes.GenerateContentConfig(
                 temperature=0.2,

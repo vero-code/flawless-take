@@ -15,7 +15,14 @@ from main import app
 
 def test_registered_routes():
     print("[1/2] Verifying FastAPI Route Registry...")
-    route_paths = {getattr(r, "path", None) for r in app.routes}
+    route_paths = set()
+    for r in app.routes:
+        if hasattr(r, "path"):
+            route_paths.add(r.path)
+        if hasattr(r, "original_router"):
+            for sub in r.original_router.routes:
+                if hasattr(sub, "path"):
+                    route_paths.add(sub.path)
 
     expected_routes = [
         "/api/health",

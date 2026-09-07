@@ -18,6 +18,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["History & Continuity State"])
 
 
+def _attach_preview_urls(record: dict) -> dict:
+    """Mutate *record* in-place to add resolved preview_ref_url / preview_cur_url."""
+    record["preview_ref_url"] = storage.url(record["preview_ref"]) if record.get("preview_ref") else None
+    record["preview_cur_url"] = storage.url(record["preview_cur"]) if record.get("preview_cur") else None
+    return record
+
+
 @router.get("/api/scene-state")
 async def get_scene_state(
     scene: str = Query(..., description="Scene heading/name"),
@@ -43,8 +50,7 @@ async def history(
     """
     records = await database.list_records(scene=scene, character=character, limit=limit)
     for r in records:
-        r["preview_ref_url"] = storage.url(r["preview_ref"]) if r.get("preview_ref") else None
-        r["preview_cur_url"] = storage.url(r["preview_cur"]) if r.get("preview_cur") else None
+        _attach_preview_urls(r)
     return records
 
 
@@ -54,9 +60,7 @@ async def history_record(record_id: int) -> dict:
     record = await database.get_record(record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-    record["preview_ref_url"] = storage.url(record["preview_ref"]) if record.get("preview_ref") else None
-    record["preview_cur_url"] = storage.url(record["preview_cur"]) if record.get("preview_cur") else None
-    return record
+    return _attach_preview_urls(record)
 
 
 @router.delete("/api/history/{record_id}")

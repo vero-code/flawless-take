@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { AGENT_QUERY_URL } from '../config'
 import type { ToolTraceItem, VoiceState } from '../types'
+import { useAgentQuery } from '../hooks/useAgentQuery'
 import { Markdown } from './Markdown'
 import { ToolTraceCard } from './ToolTraceCard'
 
@@ -24,6 +24,7 @@ export function VoiceModeView({
   const [selectedVoice, setSelectedVoice] = useState('')
   const [errorMsg, setErrorMsg]           = useState<string | null>(null)
   const [autoRearm, setAutoRearm]         = useState(true)
+  const { query } = useAgentQuery()
 
   const recognitionRef = useRef<any>(null)
   const transcriptRef  = useRef('')
@@ -99,24 +100,12 @@ export function VoiceModeView({
 
   async function runAgentWithVoice(text: string) {
     setVoiceState('processing')
-    try {
-      const res = await fetch(AGENT_QUERY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: text,
-          scene: scene.trim(),
-          character: character.trim(),
-        }),
-      })
-      if (!res.ok) throw new Error(`Server ${res.status}: ${await res.text()}`)
-      const data = await res.json()
-      const reply = (data.response as string) || 'Analysis complete.'
-      setAgentReply(reply)
+    const data = await query({ prompt: text, scene, character })
+    if (data) {
+      setAgentReply(data.response)
       setToolCalls(data.tool_calls || [])
-      speakReply(reply)
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : String(err))
+      speakReply(data.response)
+    } else {
       setVoiceState('idle')
     }
   }
