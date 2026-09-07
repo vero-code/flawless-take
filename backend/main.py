@@ -26,6 +26,7 @@ from pydantic import BaseModel
 import agent_service
 import agent_tools
 import database
+import environments
 import mcp_server as _mcp_server
 import safety_config
 import secrets_manager
@@ -236,6 +237,38 @@ async def safety_config_info() -> dict:
 async def secrets_status() -> dict:
     """Return safe audit status of studio secrets and Secret Manager integration."""
     return secrets_manager.get_secrets_status()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Step 4: Agent Deployment & Multi-Environment (Agent Builder)
+# ---------------------------------------------------------------------------
+@app.get("/api/system/version")
+async def system_version() -> dict:
+    """Return active serving environment, immutable version history, and Agent Builder metadata."""
+    return environments.get_environment_metadata()
+
+
+@app.post("/api/webhook/agent-builder")
+async def agent_builder_webhook(request: Request) -> dict:
+    """
+    Official Google Cloud Agent Builder / Dialogflow CX webhook fulfillment endpoint.
+    Handles intent tags (check_continuity, generate_checklist, emit_alert).
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return environments.handle_agent_builder_webhook(body)
+
+
+@app.get("/api/agent-builder/spec")
+async def agent_builder_spec() -> dict:
+    """Return the official Google Cloud Agent Builder / Dialogflow CX specification."""
+    spec_path = Path(__file__).parent / "agent_builder_spec.json"
+    if spec_path.exists():
+        with open(spec_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"error": "agent_builder_spec.json not found"}
 
 
 # ---------------------------------------------------------------------------

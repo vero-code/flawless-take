@@ -1,0 +1,56 @@
+{
+  "$schema": "https://cloud.google.com/dialogflow/cx/docs/concept/agent-settings",
+  "name": "flawless-take-agent-builder-spec",
+  "display_name": "Flawless Take On-Set Continuity Agent",
+  "default_language_code": "en",
+  "time_zone": "America/Los_Angeles",
+  "description": "Agent Builder specification for on-set film & TV continuity supervision across development, staging, and production environments.",
+  "environments": [
+    {
+      "name": "production",
+      "display_name": "Production (Film Set Main)",
+      "description": "Immutable production environment deployed on Google Cloud Run with Secret Manager and Gemini 3.8 Flash.",
+      "version_id": "v1.0.0",
+      "webhook_url": "https://flawless-take-prod.run.app/api/webhook/agent-builder?env=production"
+    },
+    {
+      "name": "staging",
+      "display_name": "Staging (Pre-Production Testing)",
+      "description": "Staging environment for director review and shooting script rehearsals.",
+      "version_id": "v1.0.0",
+      "webhook_url": "https://flawless-take-staging.run.app/api/webhook/agent-builder?env=staging"
+    },
+    {
+      "name": "development",
+      "display_name": "Development (Local Tablet Workstation)",
+      "description": "Local workstation development environment with mock fallback.",
+      "version_id": "v1.1.0-draft",
+      "webhook_url": "http://localhost:8000/api/webhook/agent-builder?env=development"
+    }
+  ],
+  "tools": [
+    {
+      "tool_id": "check_continuity",
+      "display_name": "Check Take Continuity",
+      "description": "Evaluates take against scene memory and shooting script rules.",
+      "webhook_tag": "check_continuity"
+    },
+    {
+      "tool_id": "generate_checklist",
+      "display_name": "Generate Department Checklist",
+      "description": "Produces actionable fixes for makeup, wardrobe, hair, and props.",
+      "webhook_tag": "generate_checklist"
+    },
+    {
+      "tool_id": "emit_alert",
+      "display_name": "Emit Crew Alert",
+      "description": "Broadcasts high-priority alert to crew radio and SSE feed.",
+      "webhook_tag": "emit_alert"
+    }
+  ],
+  "security_settings": {
+    "redaction_strategy": "REDACT_WITH_SERVICE",
+    "secret_manager_integrated": true,
+    "gemini_safety_guardrails": "ENFORCED"
+  }
+}

@@ -83,10 +83,11 @@ Aligned with the **Agentic Cinema Hackathon Guide**:
   - [x] **Studio MCP Server**: Model Context Protocol (MCP) server exposing 8 tools via SSE (`/mcp/sse`) and stdio for NLE suites and external assistants.
   - [x] **Agent Engine & Managed Hosting (Google Cloud ADK / Vertex AI)**: Packaged according to Google Cloud Agent Development Kit (ADK) and Vertex AI Reasoning Engine standards for serverless deployment (`agent_engine/`, `Dockerfile.agent_engine`, `deploy_vertex.py`).
 
-- [ ] **🚀 Phase 5: Deployment & Safety**
+- [x] **🚀 Phase 5: Deployment & Safety**
   - [x] **Safety & Guardrails (Gemini Safety Settings)**: Calibrated `SafetySetting` filters for hate speech, harassment, and dangerous content tailored for film set theatrical SFX & props, with pre-flight prompt injection guardrails (`backend/safety_config.py`).
   - [x] **Studio Secrets (Google Cloud Secret Manager)**: Enterprise credential management with automatic dynamic resolution from Secret Manager and seamless offline `.env` fallback (`backend/secrets_manager.py`, `backend/setup_secrets.py`).
   - [x] **Logic Hosting (Google Cloud Run & Docker)**: Production-ready multi-stage `Dockerfile`, `docker-compose.yml`, and `deploy_cloud_run.sh` / `.bat` automated Cloud Run serverless deployment.
+  - [x] **Agent Deployment & Environments (Agent Builder)**: Multi-environment orchestration (`development`, `staging`, `production`), immutable version snapshots, and Dialogflow CX / Agent Builder webhook fulfillment (`backend/environments.py`, `backend/agent_builder_spec.json`).
 
 
 ---
@@ -325,6 +326,26 @@ chmod +x deploy_cloud_run.sh
 ```cmd
 deploy_cloud_run.bat YOUR_GCP_PROJECT_ID us-central1
 ```
+
+---
+
+## Google Cloud Agent Builder & Multi-Environment Deployment
+
+Flawless Take adheres to **Google Cloud Agent Builder (Dialogflow CX)** environment standards, allowing film studios to isolate production traffic from testing:
+
+### Serving Environments & Versioning
+
+| Environment | Tag | Version Snapshot | Description |
+|-------------|-----|------------------|-------------|
+| **Production** | `production` | `v1.0.0` (Ready) | Immutable live release on Cloud Run with Secret Manager & Gemini 3.8 Flash |
+| **Staging** | `staging` | `v1.0.0` (Ready) | Pre-production rehearsal environment for script review |
+| **Development** | `development` | `v1.1.0-draft` | Local tablet workstation sandbox |
+
+### Endpoints
+
+- `GET /api/system/version` — Returns active environment, version snapshots, and Agent Builder metadata.
+- `GET /api/agent-builder/spec` — Declarative Agent Builder tool & environment specification.
+- `POST /api/webhook/agent-builder` — Agent Builder webhook fulfillment endpoint.
 
 ---
 
