@@ -138,26 +138,18 @@ async def handle_agent_builder_webhook_async(payload: Dict[str, Any]) -> Dict[st
                 discrepancies=discrepancies,
                 next_take=next_take,
             )
-            dept_actions = res.get("department_actions", {})
+            # Key is "departments", not "department_actions"
+            dept_actions = res.get("departments", {})
             action_lines = []
             for dept, acts in dept_actions.items():
-                for act in acts:
+                for act in (acts or []):
                     action_lines.append(f"• {dept.capitalize()}: {act}")
 
-            if action_lines:
-                fixes_str = "\n".join(action_lines)
-            else:
-                fixes_str = (
-                    "• Makeup: Verify SFX prosthetic wound matches baseline take.\n"
-                    "• Wardrobe: Button top collar as specified in shooting script."
-                )
+            fixes_str = "\n".join(action_lines) if action_lines else "No department fixes required — continuity intact."
             reply = f"Department Action Checklist generated for {scene}:\n{fixes_str}"
-        except Exception:
-            reply = (
-                f"Department Action Checklist generated for {scene}:\n"
-                f"• Makeup: Verify SFX prosthetic wound matches baseline take.\n"
-                f"• Wardrobe: Button top collar as specified in shooting script."
-            )
+        except Exception as exc:
+            logger.exception("generate_checklist webhook failed")
+            reply = f"Department Action Checklist generation failed for {scene}: {exc}"
 
     elif tag == "emit_alert":
         urgency = parameters.get("urgency", "HIGH")
