@@ -19,6 +19,7 @@ from typing import Callable
 
 import database
 import safety_config
+import scene_memory
 import storage
 
 logger = logging.getLogger(__name__)
@@ -53,8 +54,7 @@ async def get_scene_continuity_state(scene: str, character: str) -> dict:
                 "drift_status": "STABLE",
             }
 
-        from main import _build_scene_state
-        return _build_scene_state(scene, character, chronology)
+        return scene_memory.build_scene_state(scene, character, chronology)
     except Exception as exc:
         logger.exception("get_scene_continuity_state failed")
         return {"error": str(exc)}
