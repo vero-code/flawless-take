@@ -1,101 +1,38 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 
-const API_BASE    = 'http://localhost:8000'
-const API_URL     = `${API_BASE}/api/check-take`
-const COMPARE_URL = `${API_BASE}/api/compare-takes`
-const SCRIPT_URL  = `${API_BASE}/api/upload-script`
-const ALERTS_URL  = `${API_BASE}/api/alerts`
-const HISTORY_URL = `${API_BASE}/api/history`
-const MCP_INFO_URL = `${API_BASE}/api/mcp-info`
+import {
+  API_BASE,
+  API_URL,
+  COMPARE_URL,
+  SCRIPT_URL,
+  ALERTS_URL,
+  HISTORY_URL,
+  MCP_INFO_URL,
+  AGENT_QUERY_URL,
+  RISK_TOAST,
+  getMediaUrl,
+  downloadPdf,
+} from './config'
+import type {
+  CheckResult,
+  CompareResult,
+  ScriptNotes,
+  Mode,
+  Status,
+  HistoryRecord,
+  AlertEvent,
+  Toast,
+  SceneTimelineItem,
+  SceneStateData,
+  ToolTraceItem,
+  DepartmentChecklist,
+  AgentChatMessage,
+  McpInfo,
+  VoiceState,
+  Page,
+} from './types'
 
-function getMediaUrl(url?: string | null): string | undefined {
-  if (!url) return undefined
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
-  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`
-}
-
-async function downloadPdf(recordId: number, filename?: string) {
-  try {
-    const res = await fetch(`${API_BASE}/api/history/${recordId}/pdf`)
-    if (!res.ok) {
-      const errText = await res.text()
-      throw new Error(`Server returned ${res.status}: ${errText}`)
-    }
-    const blob = await res.blob()
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename || `continuity_log_${recordId}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    window.URL.revokeObjectURL(url)
-  } catch (err) {
-    alert(`Failed to export PDF: ${err instanceof Error ? err.message : String(err)}`)
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-type CheckResult = {
-  id?: number
-  scene: string
-  take: string
-  character: string
-  filename: string
-  size_bytes: number
-  result: string
-  script_grounded: boolean
-  preview_url?: string | null
-}
-
-type CompareResult = {
-  id?: number
-  scene: string
-  take_ref: string
-  take_current: string
-  character: string
-  ref_filename: string
-  cur_filename: string
-  differences: string
-  risk_level: string
-  match_score: string
-  script_grounded: boolean
-  preview_ref_url?: string | null
-  preview_cur_url?: string | null
-}
-
-
-type ScriptNotes = {
-  scenes: { scene_number: string; heading: string; characters: string[]; continuity_notes: string }[]
-  characters: { name: string; appearance_notes: string }[]
-  general_notes: string
-}
-
-type Mode = 'single' | 'compare'
-type Status = 'idle' | 'loading' | 'success' | 'error'
-
-// ---------------------------------------------------------------------------
-// History record type
-// ---------------------------------------------------------------------------
-type HistoryRecord = {
-  id: number
-  kind: 'check' | 'comparison'
-  created_at: number
-  scene: string
-  character: string
-  take?: string
-  take_ref?: string
-  take_current?: string
-  risk_level: string
-  match_score?: string
-  script_grounded: number
-  report: string
-  preview_ref_url?: string
-  preview_cur_url?: string
-}
 
 // ---------------------------------------------------------------------------
 // Minimal markdown renderer — h3, bold, italic, bullets, hr
@@ -244,29 +181,6 @@ function ScriptPanel({ onContext }: { onContext: (ctx: string) => void }) {
 // ---------------------------------------------------------------------------
 // Alert feed — SSE consumer + toast overlay
 // ---------------------------------------------------------------------------
-type AlertEvent = {
-  event: string
-  scene?: string
-  take?: string
-  take_ref?: string
-  take_current?: string
-  character?: string
-  risk_level?: string
-  match_score?: string
-  script_grounded?: boolean
-  timestamp?: number
-  department?: string
-  message?: string
-  source?: string
-}
-
-type Toast = AlertEvent & { id: number }
-
-const RISK_TOAST: Record<string, string> = {
-  HIGH: 'toast--high',
-  MEDIUM: 'toast--medium',
-  LOW: 'toast--low',
-}
 
 // ---------------------------------------------------------------------------
 // History tab
@@ -545,30 +459,6 @@ function MatchBadge({ score }: { score: string }) {
 // ---------------------------------------------------------------------------
 // Scene Memory Timeline (State Tracking)
 // ---------------------------------------------------------------------------
-type SceneTimelineItem = {
-  id: number
-  kind: 'check' | 'comparison'
-  take_label: string
-  take?: string
-  take_ref?: string
-  take_current?: string
-  risk_level: string
-  match_score?: string
-  created_at: number
-  summary: string
-  preview_ref_url?: string | null
-  preview_cur_url?: string | null
-}
-
-type SceneStateData = {
-  scene: string
-  character: string
-  total_takes: number
-  drift_status: 'STABLE' | 'DRIFTING' | 'CRITICAL'
-  baseline_take?: string | null
-  timeline: SceneTimelineItem[]
-  known_discrepancies: string[]
-}
 
 function SceneMemoryTimeline({
   scene,
@@ -733,37 +623,6 @@ function SceneMemoryTimeline({
 // ---------------------------------------------------------------------------
 // Phase 4 Step 2 & 3: Agent Copilot Types & Components
 // ---------------------------------------------------------------------------
-const AGENT_QUERY_URL = `${API_BASE}/api/agent/query`
-
-type ToolTraceItem = {
-  tool: string
-  args: Record<string, any>
-  result: any
-}
-
-type DepartmentChecklist = {
-  next_take: string
-  scene: string
-  character: string
-  priority: 'HIGH' | 'MEDIUM' | 'LOW'
-  departments: {
-    makeup: string[]
-    wardrobe: string[]
-    hair: string[]
-    props: string[]
-  }
-  generated_at?: number
-  status?: string
-}
-
-type AgentChatMessage = {
-  id: string
-  role: 'user' | 'agent'
-  text: string
-  toolCalls?: ToolTraceItem[]
-  actionsTaken?: string[]
-  timestamp: number
-}
 
 // ---------------------------------------------------------------------------
 // DepartmentChecklistCard — renders structured fix checklist per department
@@ -1156,14 +1015,6 @@ function AgentCopilotView({
 // ---------------------------------------------------------------------------
 // Phase 4 Step 5: MCP Status Badge
 // ---------------------------------------------------------------------------
-type McpInfo = {
-  server_name: string
-  version: string
-  tool_count: number
-  sse_endpoint: string
-  tools: string[]
-  claude_desktop_config: object
-}
 
 function McpStatusBadge() {
   const [info, setInfo]     = useState<McpInfo | null>(null)
@@ -1231,7 +1082,6 @@ function McpStatusBadge() {
 // ---------------------------------------------------------------------------
 // Phase 4 Step 4: Hands-Free Voice Mode
 // ---------------------------------------------------------------------------
-type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking'
 
 function VoiceModeView({
   scene,
@@ -1532,7 +1382,6 @@ function VoiceModeView({
 // ---------------------------------------------------------------------------
 // Main app
 // ---------------------------------------------------------------------------
-type Page = 'check' | 'agent' | 'voice' | 'history'
 
 function App() {
   const [page, setPage] = useState<Page>('check')
