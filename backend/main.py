@@ -7,8 +7,14 @@ initializes lifecycle event publishers, and provides production SPA static hosti
 from __future__ import annotations
 
 import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+# Ensure backend directory is in sys.path regardless of where uvicorn is launched
+_backend_dir = str(Path(__file__).resolve().parent)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
