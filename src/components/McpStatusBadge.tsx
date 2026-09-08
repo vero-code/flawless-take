@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MCP_INFO_URL } from '../config'
+import { API_BASE, MCP_INFO_URL } from '../config'
 import type { McpInfo } from '../types'
 
 /**
@@ -37,7 +37,7 @@ export function McpStatusBadge() {
     claude_desktop_config: {
       mcpServers: {
         'flawless-take': {
-          url: 'http://localhost:8000/mcp/sse'
+          url: `${API_BASE}/mcp/sse`
         }
       }
     }
@@ -75,7 +75,7 @@ export function McpStatusBadge() {
           </div>
           <div className="mcp-drawer-endpoint">
             <span className="mcp-endpoint-label">SSE endpoint:</span>
-            <code className="mcp-endpoint-url">http://localhost:8000{activeInfo.sse_endpoint}</code>
+            <code className="mcp-endpoint-url">{API_BASE}{activeInfo.sse_endpoint}</code>
           </div>
           <div className="mcp-drawer-tools">
             {activeInfo.tools.map((t) => (

@@ -58,14 +58,11 @@ app = FastAPI(title="Flawless Take API", lifespan=lifespan)
 app.mount("/uploads", StaticFiles(directory=str(storage.UPLOADS_DIR)), name="uploads")
 
 # ---------------------------------------------------------------------------
-# CORS — allow Vite dev server & MCP inspector
+# CORS — allow Vite dev server, cloud hosting & MCP inspector
 # ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:8000",   # MCP Inspector / local studio clients
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

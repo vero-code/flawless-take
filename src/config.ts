@@ -2,7 +2,9 @@
  * config.ts - API Endpoints, Media Resolution, and PDF Export Helpers
  */
 
-export const API_BASE        = 'http://localhost:8000'
+export const API_BASE = (typeof window !== 'undefined' && window.location.port !== '5173')
+  ? window.location.origin
+  : 'http://localhost:8000'
 export const API_URL         = `${API_BASE}/api/check-take`
 export const COMPARE_URL     = `${API_BASE}/api/compare-takes`
 export const SCRIPT_URL      = `${API_BASE}/api/upload-script`
