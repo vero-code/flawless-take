@@ -1,0 +1,17 @@
+.gcloudignore
+.git
+.gitignore
+node_modules/
+dist/
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+*.py[cod]
+.env
+backend/.env
+*.db
+*.sqlite
+*.sqlite3
+backend/uploads/*
+!backend/uploads/.gitkeep

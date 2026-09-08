@@ -26,14 +26,15 @@ IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:latest"
 echo "Step 1: Building container with Google Cloud Build..."
 gcloud builds submit --project "$PROJECT_ID" --tag "$IMAGE_NAME" .
 
-echo "Step 2: Deploying to Google Cloud Run..."
+echo "Step 2: Deploying to Google Cloud Run with Secret Manager..."
 gcloud run deploy "$SERVICE_NAME" \
   --project "$PROJECT_ID" \
   --image "$IMAGE_NAME" \
   --region "$REGION" \
   --platform managed \
   --allow-unauthenticated \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID}"
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT_ID,APP_ENV=production,USE_SECRET_MANAGER=true" \
+  --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest"
 
 echo "======================================================="
 echo " Deployment Complete!"
