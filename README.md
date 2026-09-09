@@ -13,6 +13,11 @@
 > **AI-powered on-set continuity supervisor and visual goof detector for film and television production.**  
 > Built for the **Agentic Cinema: The Blockbuster Hackathon** (*IBM Partner Track*).
 
+🎬 **Demo Video**:  
+[![Flawless Take Demo Video](https://img.youtube.com/vi/XGpv7UBN4YI/maxresdefault.jpg)](https://youtu.be/XGpv7UBN4YI)
+
+🏆 **Submission**: [Devpost Project Page](https://devpost.com/software/flawless-take)  
+
 ---
 
 ## Overview
