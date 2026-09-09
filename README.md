@@ -45,7 +45,7 @@ Maintaining visual continuity across takes, shooting days, and reverse-shot cove
 | **Event Bus** | Confluent Kafka, SSE | Event publishing (`flawless-take-events` topic) and client SSE stream. |
 | **Reporting & Audio** | ReportLab, Web Speech API | Continuity log PDF generation, browser speech recognition and synthesis. |
 | **DevOps** | Docker, Docker Compose, Cloud Run, Secret Manager | Multi-stage container builds, secret management, multi-environment runtime. |
-| **Scaffolding** | IBM Bob | Initial project structure and API schema generation. |
+| **Scaffolding & Architecture** | IBM Bob (50.11 Bobcoins) | Domain schemas, Pydantic take contracts, FastAPI service scaffolding, and regex risk calibration. |
 
 ---
 
@@ -90,17 +90,17 @@ Maintaining visual continuity across takes, shooting days, and reverse-shot cove
 Aligned with the **Agentic Cinema Hackathon Guide**:
 
 - [x] **🛠️ Phase 1: Core Frameworks & Environment**
-  - Scaffolding of FastAPI backend and React 19 / TypeScript tablet interface.
+  - Scaffolding of FastAPI backend directory structure, dependencies, and React 19 / TypeScript tablet interface inside **IBM Bob**.
   - Integration with the official `google-genai` SDK using `gemini-3.8-flash`.
   - Secure environment configuration and local runner tooling (`start.bat`).
 
 - [x] **🎬 Phase 2: Action Mechanisms & Data Connectivity (GenMedia Focus)**
-  - **Script Grounding**: Multimodal PDF shooting script parsing for scene and character continuity constraints.
+  - **Script Grounding**: Multimodal PDF shooting script parsing for scene and character continuity constraints, planned and structured in **IBM Bob**.
   - **Single Take Visual Analysis**: Inspection of hair, makeup, wardrobe, and props from camera captures.
   - **Dual-Take Differential Diff**: Comparative image analysis identifying exact visual deviations between takes.
 
 - [x] **🤝 Phase 3: Partner Integration & Infrastructure**
-  - **IBM Bob**: Application architecture, data models, and initial scaffolding built with IBM Bob.
+  - **IBM Bob (50.11 Bobcoins Quota)**: Full-stack domain schemas, Pydantic take contracts, SQLite persistence layer scaffolding, and precision regex extraction logic calibration (`_extract_risk()`).
   - **Confluent Kafka**: Real-time event pipeline emitting continuity checks to the `flawless-take-events` topic.
   - **Live Alert Stream**: Real-time Server-Sent Events (SSE) broadcasting instant risk warnings to production crew.
   - **Daily Continuity Gallery**: Asynchronous SQLite (`aiosqlite`) persistence and searchable history for on-set review.
